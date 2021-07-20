@@ -2,6 +2,7 @@ package com.mxny.ss.datasource.util;
 
 import com.alibaba.druid.pool.DruidDataSource;
 import com.mxny.ss.datasource.DynamicRoutingDataSource;
+import com.mxny.ss.datasource.aop.DynamicRoutingDataSourceContextHolder;
 import com.mxny.ss.datasource.domain.DruidDataSourceDto;
 import com.mxny.ss.datasource.domain.HikariDataSourceDto;
 import com.zaxxer.hikari.HikariDataSource;
@@ -11,14 +12,61 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.jdbc.DataSourceBuilder;
 
 import javax.sql.DataSource;
+import java.sql.Connection;
 import java.sql.SQLException;
 
 /**
- * 动态数据源工具
+ * 动态(多)数据源工具
  */
-public class DynaDataSourceUtils {
+public class DynamicRoutingDataSourceUtils {
 
-    private static final Logger logger = LoggerFactory.getLogger(DynaDataSourceUtils.class);
+    private static final Logger logger = LoggerFactory.getLogger(DynamicRoutingDataSourceUtils.class);
+
+    /**
+     * 测试是否联通
+     * @param dsKey
+     * @return
+     */
+    public static boolean testConnection(String dsKey){
+        DynamicRoutingDataSourceContextHolder.push(dsKey);
+        try {
+            DataSource dataSource = DynamicRoutingDataSource.getDataSourceMap().get(dsKey);
+            if(dataSource == null){
+                return false;
+            }
+            Connection connection = dataSource.getConnection();
+            if (connection != null) {
+                return true;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        finally {
+            DynamicRoutingDataSourceContextHolder.clear();
+        }
+        return false;
+    }
+
+    /**
+     * 检查数据源是否存在
+     * @param dsKey
+     * @return
+     */
+    public static boolean checkDataSourceKey(String dsKey) {
+        if (DynamicRoutingDataSource.getDataSourceMap().get(dsKey) != null) {
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * 删除数据源
+     * @param dsKey
+     */
+    public static void remove(String dsKey){
+        DynamicRoutingDataSource.getDataSourceMap().remove(dsKey);
+    }
+
     /**
      * 动态添加Hikari数据源
      * @param hikariDataSourceDto

@@ -4,8 +4,6 @@ import com.mxny.ss.datasource.aop.DynamicRoutingDataSourceContextHolder;
 import org.springframework.jdbc.datasource.lookup.AbstractRoutingDataSource;
 
 import javax.sql.DataSource;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -40,47 +38,6 @@ public class DynamicRoutingDataSource extends AbstractRoutingDataSource {
 	}
 
 	/**
-	 * 测试是否联通
-	 * @param dbkey
-	 * @return
-	 */
-	public boolean testConnection(String dbkey){
-		DynamicRoutingDataSourceContextHolder.push(dbkey);
-		try {
-			Connection connection = determineTargetDataSource().getConnection();
-			if (connection != null) {
-				return true;
-			}
-		} catch (SQLException throwables) {
-			throwables.printStackTrace();
-		}
-		finally {
-			DynamicRoutingDataSourceContextHolder.clear();
-		}
-		return false;
-	}
-
-	/**
-	 * 检查数据源是否存在
-	 * @param dsKey
-	 * @return
-	 */
-	public static boolean checkDataSourceKey(String dsKey) {
-		if (dataSourceMap.get(dsKey) != null) {
-			return true;
-		}
-		return false;
-	}
-
-	/**
-	 * 删除数据源
-	 * @param dbKey
-	 */
-	public static void remove(String dbKey){
-		dataSourceMap.remove(dbKey);
-	}
-
-	/**
 	 * 获取默认数据源
 	 * @return
 	 */
@@ -111,4 +68,6 @@ public class DynamicRoutingDataSource extends AbstractRoutingDataSource {
 	public static Map<String, DataSource> getDataSourceMap() {
 		return dataSourceMap;
 	}
+
+
 }
