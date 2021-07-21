@@ -5,6 +5,7 @@ import com.mxny.ss.datasource.DynamicRoutingDataSource;
 import com.mxny.ss.datasource.aop.DynamicRoutingDataSourceContextHolder;
 import com.mxny.ss.datasource.domain.DruidDataSourceDto;
 import com.mxny.ss.datasource.domain.HikariDataSourceDto;
+import com.mxny.ss.exception.DataErrorException;
 import com.zaxxer.hikari.HikariDataSource;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
@@ -43,6 +44,26 @@ public class DynamicRoutingDataSourceUtils {
         }
         finally {
             DynamicRoutingDataSourceContextHolder.clear();
+        }
+        return false;
+    }
+
+    /**
+     * 测试是否联通
+     * @param dataSource
+     * @return
+     */
+    public static boolean testConnection(DataSource dataSource){
+        try {
+            if(dataSource == null){
+                return false;
+            }
+            Connection connection = dataSource.getConnection();
+            if (connection != null) {
+                return true;
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
         return false;
     }
@@ -103,7 +124,7 @@ public class DynamicRoutingDataSourceUtils {
         //连接将被测试活动的最大时间量, 如果小于250毫秒，则会被重置回5秒
         hikariDataSource.setValidationTimeout(hikariDataSourceDto.getValidationTimeout());
         //注册到动态数据源
-        DynamicRoutingDataSource.getDataSourceMap().put(hikariDataSourceDto.getDataSourceId(), hikariDataSource);
+        registerDataSource(hikariDataSourceDto.getDataSourceId(), hikariDataSource);
         return hikariDataSource;
     }
 
@@ -146,7 +167,23 @@ public class DynamicRoutingDataSourceUtils {
             }
         }
         //注册到动态数据源
-        DynamicRoutingDataSource.getDataSourceMap().put(druidDataSourceDto.getDataSourceId(), druidDataSource);
+        registerDataSource(druidDataSourceDto.getDataSourceId(), druidDataSource);
         return druidDataSource;
     }
+
+    /**
+     * 测试并注册数据源
+     * @param dataSourceId
+     * @param dataSource
+     */
+    private static void registerDataSource(String dataSourceId, DataSource dataSource){
+        if(DynamicRoutingDataSource.getDataSourceMap().containsKey(dataSourceId)){
+           return;
+        }
+        if(!testConnection(dataSource)){
+            throw new DataErrorException("连接失败");
+        }
+        DynamicRoutingDataSource.getDataSourceMap().put(dataSourceId, dataSource);
+    }
+
 }

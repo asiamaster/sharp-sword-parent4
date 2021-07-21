@@ -119,6 +119,9 @@ public class DynamicRoutingDataSourceRegister implements ImportBeanDefinitionReg
 		// 读取配置文件获取更多数据源，也可以通过defaultDataSource读取数据库获取更多数据源
 //		RelaxedPropertyResolver propertyResolver = new RelaxedPropertyResolver(env, "spring.datasource.");
 		String dsPrefixs = env.getProperty("spring.datasource.names");
+		if(StringUtils.isBlank(dsPrefixs)){
+			return;
+		}
 		for (String dsPrefix : dsPrefixs.split(",")) {// 多个数据源
 			DataSource ds = buildDataSource(env, dsPrefix);
 			customDataSources.put(dsPrefix, ds);
