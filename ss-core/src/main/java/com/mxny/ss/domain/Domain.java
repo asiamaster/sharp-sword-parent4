@@ -12,12 +12,6 @@ import java.util.Map;
  */
 public class Domain<KEY extends Serializable> implements IDomain<KEY> {
 
-	/** id */
-//	@Id
-//	@Column(name = "id")
-//	@GeneratedValue(strategy = GenerationType.IDENTITY)
-	@Transient
-	protected KEY id;
 	@Transient
 	private Integer page;	//页码，从1开始
 	@Transient
@@ -29,15 +23,6 @@ public class Domain<KEY extends Serializable> implements IDomain<KEY> {
 	private String order;   //排序类型: asc,desc
 	@Transient
 	private Map metadata;
-
-	@Override
-	public KEY getId() {
-		return id;
-	}
-	@Override
-	public void setId(KEY id) {
-		this.id = id;
-	}
 
 	@Override
 	public Integer getPage() {

@@ -5,8 +5,8 @@ package com.mxny.ss.dto;
  */
 public interface IBaseDomain extends IDomain<Long> {
 
-    @Override
+    String ID = "id";
+
     Long getId();
-    @Override
     void setId(Long id);
 }

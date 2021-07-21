@@ -10,10 +10,9 @@ import java.util.Map;
  */
 public interface IDomain<KEY extends Serializable> extends IDTO {
 
-	String ID = "id";
-	@Transient
-	KEY getId();
-	void setId(KEY id);
+//	@Transient
+//	KEY getId();
+//	void setId(KEY id);
 
 	@Transient
 	Integer getPage();
