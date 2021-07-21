@@ -122,6 +122,10 @@ public class DTOFactory implements IDTOFactory {
             ctClass = createBaseDomainCtClass((Class<IBaseDomain>) clazz);
         } else if (IStringDomain.class.isAssignableFrom(clazz)) {
             ctClass = createStringDomainCtClass((Class<IStringDomain>) clazz);
+        } else if (ITaosDomain.class.isAssignableFrom(clazz)) {
+            ctClass = createTaosDomainCtClass((Class<ITaosDomain>) clazz);
+        } else if (IDomain.class.isAssignableFrom(clazz)) {
+            ctClass = createDomainCtClass((Class<IStringDomain>) clazz);
         } else {
             ctClass = createDTOCtClass(clazz);
         }
@@ -358,6 +362,19 @@ public class DTOFactory implements IDTOFactory {
         CtMethod setIdMethod = CtMethod.make("public void setId(Long id){this.id=id;}", implCtClass);
         implCtClass.addMethod(getIdMethod);
         implCtClass.addMethod(setIdMethod);
+        return implCtClass;
+    }
+
+    @SuppressWarnings(value = {"unchecked", "deprecation"})
+    private <T extends ITaosDomain> CtClass createTaosDomainCtClass(Class<T> clazz) throws Exception {
+        CtClass implCtClass = createDomainCtClass(clazz);
+        //创建属性
+        CtField tsField = CtField.make("private Long ts;", implCtClass);
+        implCtClass.addField(tsField);
+        CtMethod getTsMethod = CtMethod.make("public Long getTs(){return ts==null?(Long)aget(\"ts\"):ts;}", implCtClass);
+        CtMethod setTsMethod = CtMethod.make("public void setTs(Long ts){this.ts=ts;}", implCtClass);
+        implCtClass.addMethod(getTsMethod);
+        implCtClass.addMethod(setTsMethod);
         return implCtClass;
     }
 
