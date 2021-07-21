@@ -24,6 +24,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.transaction.annotation.Transactional;
 import tk.mybatis.mapper.entity.Example;
+import tk.mybatis.mapper.entity.IDynamicTableName;
 
 import javax.persistence.Column;
 import javax.persistence.Id;
@@ -405,6 +406,10 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 			PageHelper.startPage(page, domain.getRows());
 		}else if(domain.getRows() != null && domain.getRows() < 0){
 			PageHelper.startPage(page, 0);
+		}
+		//设置动态表名
+		if(domain instanceof IDynamicTableName){
+			example.setTableName(((IDynamicTableName)domain).getDynamicTableName());
 		}
 		return getDao().selectByExampleExpand(example);
 	}
