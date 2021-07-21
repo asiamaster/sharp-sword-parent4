@@ -181,8 +181,14 @@ public class DynamicRoutingDataSourceRegister implements ImportBeanDefinitionReg
 				String username = decrypt(dsMap.get("username"));
 				String password = decrypt(dsMap.get("password"));
 				//连接池统一配置
-				Properties datasourceProp = binder.bind(prefix+".hikari", Bindable.of(Properties.class)).get();
-				datasourceProp.putAll(dsMap);
+				Properties datasourceProp = null;
+				try {
+					datasourceProp = binder.bind(prefix + ".hikari", Bindable.of(Properties.class)).get();
+					datasourceProp.putAll(dsMap);
+				}catch (Exception e){
+					logger.info("未配置hikari连接池设置，采用默认配置");
+					datasourceProp = new Properties();
+				}
 				// 创建基础hikari数据源
 				DataSourceBuilder<HikariDataSource> hikariDataSourceBuilder = DataSourceBuilder.create().type(HikariDataSource.class);
 				hikariDataSourceBuilder.url(url);
