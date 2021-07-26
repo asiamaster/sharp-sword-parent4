@@ -10,12 +10,13 @@ import com.mxny.ss.domain.annotation.FindInSet;
 import com.mxny.ss.domain.annotation.Like;
 import com.mxny.ss.domain.annotation.Operator;
 import com.mxny.ss.domain.annotation.SqlOperator;
-import com.mxny.ss.dto.DTOUtils;
-import com.mxny.ss.dto.IDTO;
-import com.mxny.ss.dto.IMybatisForceParams;
-import com.mxny.ss.dto.ITaosDomain;
+import com.mxny.ss.dto.*;
+import com.mxny.ss.exception.DataErrorException;
 import com.mxny.ss.exception.ParamErrorException;
+import com.mxny.ss.metadata.annotation.TaosTag;
+import com.mxny.ss.util.CamelTool;
 import com.mxny.ss.util.DateUtils;
+import com.mxny.ss.util.LambadaTools;
 import com.mxny.ss.util.POJOUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -23,14 +24,12 @@ import org.apache.commons.lang3.time.DateFormatUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
 import tk.mybatis.mapper.entity.Example;
 import tk.mybatis.mapper.entity.IDynamicTableName;
 
-import javax.persistence.Column;
-import javax.persistence.Id;
-import javax.persistence.OrderBy;
-import javax.persistence.Transient;
+import javax.persistence.*;
 import java.lang.reflect.*;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -48,7 +47,8 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
 
     @Autowired
     private MyMapper<T> mapper;
-
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
     /**
      * 如果不使用通用mapper，可以自行在子类覆盖getDao方法
      */
@@ -68,10 +68,17 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         return getDao().insertSelective(t);
     }
 
-    
+    /**
+     * 批量插入
+     * 该方法不再支持动态代理DTO
+     * @param list
+     */
     @Transactional(rollbackFor = Exception.class)
-    public int batchInsert(List<T> list) {
-        return getDao().insertList(list);
+    public void batchInsert(List<T> list) {
+        if(org.apache.commons.collections.CollectionUtils.isEmpty(list)){
+            return;
+        }
+        jdbcTemplate.execute(buildInsertSql(list));
     }
 
     public T get(Long key) {
@@ -1003,5 +1010,219 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                 }
             }
         }
+    }
+
+    /**
+     * 构建批量插入sql
+     * @param datas
+     * @return
+     */
+    public String buildInsertSql(List<T> datas) {
+        if(!(datas.get(0) instanceof IDynamicTableName)){
+            throw new DataErrorException("未实现IDynamicTableName接口");
+        }
+        List<ITaosTableDomain> tableDomains = (List)datas;
+        //按动态表名排序
+        Collections.sort(tableDomains, (a, b) -> {
+            return a.getDynamicTableName().compareTo(b.getDynamicTableName());
+        });
+        Class<?> dtoClass = DTOUtils.getDTOClass(datas.get(0));
+        Table table = dtoClass.getAnnotation(Table.class);
+        String tableName = table == null ? CamelTool.camelToUnderline(dtoClass.getSimpleName(), false) : table.name();
+        //获取TaosTag
+        List<String> tags = getTags(dtoClass);
+
+        final List<Map<String, Object>> mappings;
+        try {
+            mappings = beanTableMapping(datas, tags);
+        } catch (Exception e) {
+            throw new DataErrorException(e);
+        }
+        int mappingSize = mappings.get(0).size();
+        StringBuilder sqlBuilder = new StringBuilder("INSERT INTO ");
+        //记录当前表名，因为排了序，有不同的表名后，需要重新计算SQL
+        String lastTableName = "";
+        int size = tableDomains.size();
+        for (int index = 0; index < size; index++) {
+            ITaosTableDomain tableDomain = tableDomains.get(index);
+            int k=0;
+            //重复的表名只需要拼接values值部分
+            if(tableDomain.getDynamicTableName().equals(lastTableName)){
+                sqlBuilder.append(" (");
+                for (Map.Entry<String, Object> entry : mappings.get(index).entrySet()) {
+                    Object value = entry.getValue();
+                    if(value instanceof Number) {
+                        sqlBuilder.append(value);
+                    }else{
+                        sqlBuilder.append("'").append(value).append("'");
+                    }
+                    if(k < mappingSize-1) {
+                        sqlBuilder.append(", ");
+                    }
+                    k++;
+                }
+                sqlBuilder.append(") ");
+                continue;
+            }
+            sqlBuilder.append(tableDomain.getDynamicTableName()).append(" USING ").append(tableName);
+            if(!tags.isEmpty()){
+                sqlBuilder.append(" (");
+                int tagSize = tags.size();
+                tags.forEach(LambadaTools.forEachWithIndex((item, idx) -> {
+                    sqlBuilder.append(item);
+                    if(idx < (tagSize-1)) {
+                        sqlBuilder.append(", ");
+                    }
+                }));
+                sqlBuilder.append(") TAGS (");
+                tags.forEach(LambadaTools.forEachWithIndex((item, i) -> {
+                    Object tagValue = POJOUtils.getProperty(tableDomain, item);
+                    if(tagValue instanceof Number){
+                        sqlBuilder.append(tagValue);
+                    }else {
+                        sqlBuilder.append("'").append(tagValue).append("'");
+                    }
+                    if(i < (tagSize-1)) {
+                        sqlBuilder.append(", ");
+                    }
+                }));
+                sqlBuilder.append(") ");
+            }
+            //拼接子表字段
+            sqlBuilder.append("(");
+            int i=0;
+            for (Map.Entry<String, Object> entry : mappings.get(0).entrySet()) {
+                sqlBuilder.append(entry.getKey());
+                if(i < (mappingSize-1)) {
+                    sqlBuilder.append(", ");
+                }
+                i++;
+            }
+            sqlBuilder.append(") ");
+            //拼接字段值
+            sqlBuilder.append("VALUES (");
+            int j=0;
+            for (Map.Entry<String, Object> entry : mappings.get(index).entrySet()) {
+                Object value = entry.getValue();
+                if(value instanceof Number) {
+                    sqlBuilder.append(value);
+                }else{
+                    sqlBuilder.append("'").append(value).append("'");
+                }
+                if(j < (mappingSize-1)) {
+                    sqlBuilder.append(", ");
+                }
+                j++;
+            }
+            sqlBuilder.append(") ");
+            lastTableName = tableDomain.getDynamicTableName();
+        };
+        return sqlBuilder.toString();
+    }
+
+    /**
+     * 构建Bean映射, 去掉tags中的字段
+     * key为表名，value为字段值
+     * 该方法不再支持动态代理DTO
+     * @param datas
+     * @return
+     */
+    private List<Map<String, Object>> beanTableMapping(List<T> datas, List<String> tags) throws Exception {
+        Class<?> dtoClass = DTOUtils.getDTOClass(datas.get(0));
+        List<String> transients = getTransients(dtoClass);
+        List<Map<String, Object>> list = new ArrayList<>(datas.size());
+        for (T data : datas) {
+//            Map<String, Object> beanMap = BeanConver.beanToMap(data);
+            Method[] methods = dtoClass.getMethods();
+            Map<String, Object> beanMap = new HashMap<>();
+            for (Method method : methods) {
+                if(!POJOUtils.isGetMethod(method)){
+                    continue;
+                }
+                if(tags.contains(POJOUtils.getBeanField(method))){
+                    continue;
+                }
+                if(method.getAnnotation(Transient.class) != null){
+                    continue;
+                }
+                if(method.getName().equals("getMetadata") || method.getName().equals("getFields") || method.getName().equals("getDynamicTableName")){
+                    continue;
+                }
+                Object value = method.invoke(data);
+                if(value != null) {
+                    beanMap.put(getColumnName(method), method.invoke(data));
+                }
+            }
+            list.add(beanMap);
+//            if(!transients.isEmpty()){
+//                for (String aTransient : transients) {
+//                    beanMap.remove(aTransient);
+//                }
+//            }
+//            beanMap.remove("metadata");
+//            beanMap.remove("fields");
+//            beanMap.remove("dynamicTableName");
+//            for (String tag : tags) {
+//                if(beanMap.containsKey(tag)){
+//                    beanMap.remove(tag);
+//                }
+//            }
+        }
+
+        return list;
+    }
+
+    /**
+     * 获取get方法上的Column列名，没有Column注解则按驼峰命名
+     * @param method
+     * @return
+     */
+    private String getColumnName(Method method) {
+        Column column = method.getAnnotation(Column.class);
+        return column == null ? CamelTool.camelToUnderline(POJOUtils.getBeanField(method.getName()), false) : column.name();
+    }
+
+    /**
+     * 获取DTO上的Transient字段名
+     * @param dtoClass
+     * @return
+     */
+    private List<String> getTransients(Class<?> dtoClass){
+        List<String> transients = new ArrayList<>();
+        for (Method method : dtoClass.getMethods()) {
+            //只处理getter方法
+            if(!POJOUtils.isGetMethod(method)){
+                continue;
+            }
+            Transient aTransient = method.getAnnotation(Transient.class);
+            if(aTransient != null){
+                Column column = method.getAnnotation(Column.class);
+                String columnName = column == null ? CamelTool.camelToUnderline(POJOUtils.getBeanField(method.getName()), false) : column.name();
+                transients.add(columnName);
+            }
+        }
+        return transients;
+    }
+
+    /**
+     * 获取DTO上的Tag字段名
+     * @param dtoClass
+     * @return
+     */
+    private List<String> getTags(Class<?> dtoClass){
+        List<String> tags = new ArrayList<>();
+        for (Method method : dtoClass.getMethods()) {
+            //只处理getter方法
+            if(!POJOUtils.isGetMethod(method)){
+                continue;
+            }
+            TaosTag taosTag = method.getAnnotation(TaosTag.class);
+            if(taosTag != null && taosTag.value()){
+                Column column = method.getAnnotation(Column.class);
+                String tag = column == null ? CamelTool.camelToUnderline(POJOUtils.getBeanField(method.getName()), false) : column.name();
+                tags.add(tag);
+            }
+        }
+        return tags;
     }
 }

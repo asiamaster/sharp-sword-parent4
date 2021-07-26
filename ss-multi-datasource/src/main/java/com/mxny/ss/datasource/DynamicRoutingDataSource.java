@@ -38,6 +38,18 @@ public class DynamicRoutingDataSource extends AbstractRoutingDataSource {
 	}
 
 	/**
+	 * 静态获取当前数据源
+	 * @return
+	 */
+	public static DataSource getCurrentDataSource(){
+		Object key = DynamicRoutingDataSourceContextHolder.peek();
+		DataSource dataSource = dataSourceMap.get(key);
+		if (dataSource == null) {
+			dataSource = defaultDataSource;
+		}
+		return dataSource;
+	}
+	/**
 	 * 获取默认数据源
 	 * @return
 	 */
