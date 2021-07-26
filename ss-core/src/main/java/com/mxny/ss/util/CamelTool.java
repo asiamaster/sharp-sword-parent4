@@ -104,4 +104,31 @@ public class CamelTool {
         }
         return sb.toString();
     }
+
+    /**
+     * 驼峰转下划线
+     * 首字母不转
+     * @param param
+     * @param toUpper
+     * @return
+     */
+    public static String camelToUnderline(String param, boolean toUpper) {
+        if (param == null || "".equals(param.trim())) {
+            return "";
+        }
+        int len = param.length();
+        StringBuilder sb = new StringBuilder(len);
+        for (int i = 0; i < len; i++) {
+            char c = param.charAt(i);
+            if (Character.isUpperCase(c) && i != 0) {
+                sb.append(UNDERLINE);
+            }
+            if (toUpper) {
+                sb.append(Character.toUpperCase(c));  //统一都转大写
+            } else {
+                sb.append(Character.toLowerCase(c));  //统一都转小写
+            }
+        }
+        return sb.toString();
+    }
 }
