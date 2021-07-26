@@ -48,13 +48,16 @@ public class PerformanceInterceptor implements Interceptor {
         String sql = getSql(boundSql, parameterObject, configuration);
 
         long start = System.currentTimeMillis();
-
-        Object result = invocation.proceed();
-
-        long end = System.currentTimeMillis();
-        long timing = end - start;
-        System.out.println("耗时：" + timing + " ms" + " - id:" + statementId + " - Sql:" + sql);
-        return result;
+        try {
+            Object result = invocation.proceed();
+            long end = System.currentTimeMillis();
+            long timing = end - start;
+            System.out.println("耗时：" + timing + " ms" + " - id:" + statementId + " - Sql:" + sql);
+            return result;
+        }catch (Exception e){
+            System.out.println("SQL异常 - id:" + statementId + " - Sql:" + sql);
+            throw e;
+        }
     }
 
     @Override

@@ -369,9 +369,11 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 			}
 			return exampleExpand;
 		} else {//如果要检查字段(防止注入)
-			ExampleExpand.Builder builder = new Example.Builder(entityClass);
-			builder.select(columnsSet.toArray(new String[]{}));
-			ExampleExpand exampleExpand1 = ExampleExpand.of(entityClass, builder);
+//			ExampleExpand.Builder builder = new Example.Builder(entityClass);
+//			builder.select(columnsSet.toArray(new String[]{}));
+//			ExampleExpand exampleExpand1 = ExampleExpand.of(entityClass, builder);
+			ExampleExpand exampleExpand1 = ExampleExpand.of(entityClass);
+			exampleExpand1.selectProperties(columnsSet.toArray(new String[]{}));
 			//设置WhereSuffixSql
 			if(StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())){
 				exampleExpand1.setWhereSuffixSql(iMybatisForceParams.getWhereSuffixSql());

@@ -13,10 +13,4 @@ import static java.lang.annotation.RetentionPolicy.RUNTIME;
 @Target({METHOD, FIELD})
 @Retention(RUNTIME)
 public @interface TaosTag {
-
-    /**
-     * 是否超级表Tag
-     * @return
-     */
-    boolean value() default true;
 }

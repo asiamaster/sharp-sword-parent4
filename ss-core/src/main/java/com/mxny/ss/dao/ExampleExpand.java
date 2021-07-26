@@ -55,6 +55,7 @@ public class ExampleExpand<A> extends Example {
     public ExampleExpand(Class<A> entityClass, Example.Builder builder) {
         super(entityClass);
         try {
+            builder.build();
             this.distinct = getProperty(builder, "distinct", Boolean.class);
             this.propertyMap = getProperty(builder, "propertyMap", Map.class);
             this.selectColumns = getProperty(builder, "selectColumns", Set.class);
