@@ -6,7 +6,6 @@ import com.google.common.collect.Lists;
 import com.mxny.ss.dao.ExampleExpand;
 import com.mxny.ss.domain.BaseDomain;
 import com.mxny.ss.domain.EasyuiPageOutput;
-import com.mxny.ss.domain.annotation.FindInSet;
 import com.mxny.ss.domain.annotation.Like;
 import com.mxny.ss.domain.annotation.Operator;
 import com.mxny.ss.domain.annotation.SqlOperator;
@@ -56,21 +55,45 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         return this.mapper;
     }
 
-    
+    /**
+     * 普通插入, 无值时将插入null
+     * 例:INSERT INTO d1001 (ts, current, phase) VALUES ('2021-07-13 14:06:33.196', null, 0.31);
+     * @param t
+     * @return
+     */
     @Transactional(rollbackFor = Exception.class)
     public int insert(T t) {
         return getDao().insert(t);
     }
 
-    
+    /**
+     * 普通选择性插入，表不存在时将抛出异常
+     * 例:INSERT INTO d1001 (ts, current, phase) VALUES ('2021-07-13 14:06:33.196', 10.27, 0.31);
+     * @param t
+     * @return
+     */
     @Transactional(rollbackFor = Exception.class)
     public int insertSelective(T t) {
         return getDao().insertSelective(t);
     }
 
     /**
+     * 支持tag的插入，表不存在时将自动创建
+     * 例:INSERT INTO d21003 USING meters (location, groupdId) TAGS ('Beijing.Chaoyang', 2) (ts, current, phase) VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
+     * @param t
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void insertSelectiveByTags(T t) {
+        jdbcTemplate.execute(buildInsertSql(Lists.newArrayList(t)));
+    }
+
+    /**
      * 批量插入
      * 该方法不再支持动态代理DTO
+     * 例:
+     * INSERT INTO d21001 USING meters TAGS ('Beijing.Chaoyang', 2) VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
+     *             d21002 USING meters (groupdId) TAGS (2) VALUES ('2021-07-13 14:06:34.255', 10.15, 217, 0.33)
+     *             d21003 USING meters (groupdId) TAGS (2) (ts, current, phase) VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
      * @param list
      */
     @Transactional(rollbackFor = Exception.class)
@@ -120,42 +143,47 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      */
     public ExampleExpand getExample(T domain, Class<?> entityClass) {
         ExampleExpand exampleExpand = ExampleExpand.of(entityClass);
-        if(!(domain instanceof IMybatisForceParams)){
+        if(!(domain instanceof ITaosTableDomain)){
             return exampleExpand;
         }
-        IMybatisForceParams iMybatisForceParams =((IMybatisForceParams) domain);
+        ITaosTableDomain iTaosTableDomain =((ITaosTableDomain) domain);
         //这里构建Example，并设置selectColumns
-        Set<String> columnsSet = iMybatisForceParams.getSelectColumns();
-        if(columnsSet == null|| columnsSet.isEmpty()){
-            return exampleExpand;
+        Set<String> columnsSet = iTaosTableDomain.getSelectColumns();
+        if(columnsSet == null){
+            columnsSet = new HashSet<>();
+            Method[] methods = entityClass.getMethods();
+            //先计算出需要get的方法
+            for (Method method : methods) {
+                if(!POJOUtils.isGetMethod(method)){
+                    continue;
+                }
+                Boolean containsTag = iTaosTableDomain.getContainsTag();
+                //默认查询所有字段(包含Tag)
+                if(containsTag != null && !containsTag) {
+                    if(method.getAnnotation(TaosTag.class) != null){
+                        continue;
+                    }
+                }
+                if(method.getAnnotation(Transient.class) != null){
+                    continue;
+                }
+                if(method.getName().equals("getMetadata") || method.getName().equals("getFields") || method.getName().equals("getDynamicTableName")){
+                    continue;
+                }
+                columnsSet.add(POJOUtils.getBeanField(method));
+            }
         }
-        Boolean checkInjection = iMybatisForceParams.getCheckInjection();
-        //如果不检查，则用反射强制注入
-        if (checkInjection == null || !checkInjection) {
+        ExampleExpand exampleExpand1 = ExampleExpand.of(entityClass);
+        //防止SQL注入
+        exampleExpand1.selectProperties(columnsSet.toArray(new String[]{}));
+        if(domain instanceof IMybatisForceParams) {
+            IMybatisForceParams iMybatisForceParams = ((IMybatisForceParams) domain);
             //设置WhereSuffixSql
-            if(StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())){
-                exampleExpand.setWhereSuffixSql(iMybatisForceParams.getWhereSuffixSql());
-            }
-            try {
-                Field selectColumnsField = Example.class.getDeclaredField("selectColumns");
-                selectColumnsField.setAccessible(true);
-                selectColumnsField.set(exampleExpand, columnsSet);
-            } catch (NoSuchFieldException e) {
-                e.printStackTrace();
-            } catch (IllegalAccessException e) {
-                e.printStackTrace();
-            }
-            return exampleExpand;
-        } else {//如果要检查字段(防止注入)
-            ExampleExpand.Builder builder = new Example.Builder(entityClass);
-            builder.select(columnsSet.toArray(new String[]{}));
-            ExampleExpand exampleExpand1 = ExampleExpand.of(entityClass, builder);
-            //设置WhereSuffixSql
-            if(StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())){
+            if (StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())) {
                 exampleExpand1.setWhereSuffixSql(iMybatisForceParams.getWhereSuffixSql());
             }
-            return exampleExpand1;
         }
+        return exampleExpand1;
     }
 
     /**
@@ -187,7 +215,10 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         }
         //设置动态表名
         if(domain instanceof IDynamicTableName){
-            example.setTableName(((IDynamicTableName)domain).getDynamicTableName());
+            String dynamicTableName = ((IDynamicTableName) domain).getDynamicTableName();
+            if(StringUtils.isNotBlank(dynamicTableName)) {
+                example.setTableName(dynamicTableName);
+            }
         }
         return getDao().selectByExampleExpand(example);
     }
@@ -228,7 +259,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @return
      */
     
-    public EasyuiPageOutput listEasyuiPageByExample(T domain) throws Exception {
+    public EasyuiPageOutput listEasyuiPageByExample(T domain) {
         List<T> list = listByExample(domain);
         long total = list instanceof Page ? ( (Page) list).getTotal() : list.size();
         return new EasyuiPageOutput(total, list);
@@ -240,7 +271,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @return
      */
     
-    public EasyuiPageOutput listEasyuiPage(T domain, boolean useProvider) throws Exception {
+    public EasyuiPageOutput listEasyuiPage(T domain, boolean useProvider) {
         if(domain.getRows() != null && domain.getRows() >= 1) {
             //为了线程安全,请勿改动下面两行代码的顺序
             PageHelper.startPage(domain.getPage(), domain.getRows()).setCountColumn(ITaosDomain.ID);
@@ -312,7 +343,6 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             }
             Like like = field.getAnnotation(Like.class);
             Operator operator = field.getAnnotation(Operator.class);
-            FindInSet findInSet = field.getAnnotation(FindInSet.class);
             //and/or
             SqlOperator sqlOperator = field.getAnnotation(SqlOperator.class);
             Class<?> fieldType = field.getType();
@@ -341,8 +371,6 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                     if (!andOerator(criteria, columnName, fieldType, operator.value(), value)) {
                         continue;
                     }
-                } else if (findInSet != null) {
-                    andFindInSet(criteria, columnName, value);
                 } else {
                     andEqual(criteria, columnName, value);
                 }
@@ -353,8 +381,6 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                     if (!orOerator(criteria, columnName, fieldType, operator.value(), value)) {
                         continue;
                     }
-                } else if (findInSet != null) {
-                    orFindInSet(criteria, columnName, value);
                 } else {
                     orEqual(criteria, columnName, value);
                 }
@@ -439,9 +465,17 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         Class tClazz = DTOUtils.getDTOClass(domain);
         //解析空值字段(where xxx is null)
         parseNullField(domain, criteria);
+
         List<Method> methods = new ArrayList<>();
         //设置子类和所有超类的方法
         getDeclaredMethod(tClazz, methods);
+
+        //用于在for中判断是否需要添加查询条件
+        ITaosTableDomain iTaosTableDomain = ((ITaosTableDomain) domain);
+        boolean taosTable = false;
+        if (domain instanceof ITaosTableDomain) {
+            taosTable = true;
+        }
         for(Method method : methods){
             if(excludeMethod(method)) {
                 continue;
@@ -457,9 +491,17 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             if(transient1 != null) {
                 continue;
             }
+            if(taosTable) {
+                Boolean containsTag = iTaosTableDomain.getContainsTag();
+                //默认查询所有字段(包含Tag)，如果包含Tag为false,则当有TaosTag注解时，不加入查询条件
+                if (containsTag != null && !containsTag) {
+                    if(method.getAnnotation(TaosTag.class) != null){
+                        continue;
+                    }
+                }
+            }
             Like like = method.getAnnotation(Like.class);
             Operator operator = method.getAnnotation(Operator.class);
-            FindInSet findInSet = method.getAnnotation(FindInSet.class);
             //and/or
             SqlOperator sqlOperator = method.getAnnotation(SqlOperator.class);
             Class<?> fieldType = method.getReturnType();
@@ -479,8 +521,6 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                     if (!andOerator(criteria, columnName, fieldType, operator.value(), value)) {
                         continue;
                     }
-                } else if (findInSet != null) {
-                    andFindInSet(criteria, columnName, value);
                 } else {
                     andEqual(criteria, columnName, value);
                 }
@@ -491,9 +531,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                     if (!orOerator(criteria, columnName, fieldType, operator.value(), value)) {
                         continue;
                     }
-                } else if (findInSet != null) {
-                    orFindInSet(criteria, columnName, value);
-                } else {
+                }else {
                     orEqual(criteria, columnName, value);
                 }
             }
@@ -581,20 +619,6 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
     }
 
     /**
-     * or findInSet
-     * @param criteria
-     * @param columnName
-     * @param value
-     */
-    private void orFindInSet(Example.Criteria criteria, String columnName, Object value){
-        if(Number.class.isAssignableFrom(value.getClass())){
-            criteria = criteria.orCondition("find_in_set (" + value + ", "+columnName+")");
-        }else{
-            criteria = criteria.orCondition("find_in_set ('" + value + "', "+columnName+")");
-        }
-    }
-
-    /**
      * or equal
      * @param criteria
      * @param columnName
@@ -619,20 +643,6 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             criteria = criteria.andCondition(columnName + " = "+ value+" ");
         }else{
             criteria = criteria.andCondition(columnName + " = '"+ value+"' ");
-        }
-    }
-
-    /**
-     * and findInSet
-     * @param criteria
-     * @param columnName
-     * @param value
-     */
-    private void andFindInSet(Example.Criteria criteria, String columnName, Object value){
-        if(Number.class.isAssignableFrom(value.getClass())){
-            criteria = criteria.andCondition("find_in_set (" + value + ", "+columnName+")");
-        }else{
-            criteria = criteria.andCondition("find_in_set ('" + value + "', "+columnName+")");
         }
     }
 
@@ -1018,6 +1028,9 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @return
      */
     public String buildInsertSql(List<T> datas) {
+        if(CollectionUtils.isEmpty(datas)){
+            return null;
+        }
         if(!(datas.get(0) instanceof IDynamicTableName)){
             throw new DataErrorException("未实现IDynamicTableName接口");
         }
@@ -1029,12 +1042,10 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         Class<?> dtoClass = DTOUtils.getDTOClass(datas.get(0));
         Table table = dtoClass.getAnnotation(Table.class);
         String tableName = table == null ? CamelTool.camelToUnderline(dtoClass.getSimpleName(), false) : table.name();
-        //获取TaosTag
-        List<String> tags = getTags(dtoClass);
 
         final List<Map<String, Object>> mappings;
         try {
-            mappings = beanTableMapping(datas, tags);
+            mappings = beanTableMapping(datas);
         } catch (Exception e) {
             throw new DataErrorException(e);
         }
@@ -1065,6 +1076,8 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                 continue;
             }
             sqlBuilder.append(tableDomain.getDynamicTableName()).append(" USING ").append(tableName);
+            //获取TaosTag
+            List<String> tags = getTags(dtoClass);
             if(!tags.isEmpty()){
                 sqlBuilder.append(" (");
                 int tagSize = tags.size();
@@ -1127,46 +1140,36 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param datas
      * @return
      */
-    private List<Map<String, Object>> beanTableMapping(List<T> datas, List<String> tags) throws Exception {
+    private List<Map<String, Object>> beanTableMapping(List<T> datas) throws Exception {
         Class<?> dtoClass = DTOUtils.getDTOClass(datas.get(0));
-        List<String> transients = getTransients(dtoClass);
         List<Map<String, Object>> list = new ArrayList<>(datas.size());
+        Method[] methods = dtoClass.getMethods();
+        //先计算出需要get的方法
+        List<Method> getters = new ArrayList<>();
+        for (Method method : methods) {
+            if(!POJOUtils.isGetMethod(method)){
+                continue;
+            }
+            if(method.getAnnotation(TaosTag.class) != null){
+                continue;
+            }
+            if(method.getAnnotation(Transient.class) != null){
+                continue;
+            }
+            if(method.getName().equals("getMetadata") || method.getName().equals("getFields") || method.getName().equals("getDynamicTableName")){
+                continue;
+            }
+            getters.add(method);
+        }
         for (T data : datas) {
-//            Map<String, Object> beanMap = BeanConver.beanToMap(data);
-            Method[] methods = dtoClass.getMethods();
             Map<String, Object> beanMap = new HashMap<>();
-            for (Method method : methods) {
-                if(!POJOUtils.isGetMethod(method)){
-                    continue;
-                }
-                if(tags.contains(POJOUtils.getBeanField(method))){
-                    continue;
-                }
-                if(method.getAnnotation(Transient.class) != null){
-                    continue;
-                }
-                if(method.getName().equals("getMetadata") || method.getName().equals("getFields") || method.getName().equals("getDynamicTableName")){
-                    continue;
-                }
-                Object value = method.invoke(data);
+            for (Method getter : getters) {
+                Object value = getter.invoke(data);
                 if(value != null) {
-                    beanMap.put(getColumnName(method), method.invoke(data));
+                    beanMap.put(getColumnName(getter), getter.invoke(data));
                 }
             }
             list.add(beanMap);
-//            if(!transients.isEmpty()){
-//                for (String aTransient : transients) {
-//                    beanMap.remove(aTransient);
-//                }
-//            }
-//            beanMap.remove("metadata");
-//            beanMap.remove("fields");
-//            beanMap.remove("dynamicTableName");
-//            for (String tag : tags) {
-//                if(beanMap.containsKey(tag)){
-//                    beanMap.remove(tag);
-//                }
-//            }
         }
 
         return list;
@@ -1216,8 +1219,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             if(!POJOUtils.isGetMethod(method)){
                 continue;
             }
-            TaosTag taosTag = method.getAnnotation(TaosTag.class);
-            if(taosTag != null && taosTag.value()){
+            if(method.getAnnotation(TaosTag.class) != null){
                 Column column = method.getAnnotation(Column.class);
                 String tag = column == null ? CamelTool.camelToUnderline(POJOUtils.getBeanField(method.getName()), false) : column.name();
                 tags.add(tag);
