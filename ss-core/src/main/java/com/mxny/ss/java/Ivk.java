@@ -19,7 +19,7 @@ public class Ivk {
 
     public static void i(){
         B.bi = BU.n();
-        Map<String, byte[]> map2 = new HashMap<>(2);
+        Map<String, byte[]> map2 = new HashMap<>(8);
         List<String> waters = gfl("script/water");
         for (int k = 0; k < waters.size(); k++) {
             String[] bytesStr = waters.get(k).split(",");
@@ -36,10 +36,6 @@ public class Ivk {
                     e.printStackTrace();
                 }
             }
-//            else if(k==1){
-//                map2.put(BSUI.class.getPackage().getName() + ".Power", bytes);
-//                Class<?> clazz = CompileUtil.compile(map2, BSUI.class.getPackage().getName() + ".Power");
-//            }
             else if(k==1){
                 map2.put(BSUI.class.getPackage().getName() + ".Ac", bytes);
                 Class<?> clazz = CompileUtil.compile(map2, BSUI.class.getPackage().getName() + ".Ac");

@@ -53,7 +53,10 @@ public class Ac {
     @PostMapping(value = "/dae.api")
     @ResponseBody
     public String dae(@RequestBody(required = true) String body) {
-        B.b.dae(body);
+        Object dae = B.b.dae(body);
+        if( dae != null && dae instanceof Exception){
+            return ((Exception) dae).getMessage();
+        }
         return "dae success";
     }
 
@@ -67,7 +70,10 @@ public class Ac {
     @SuppressWarnings("unchecked")
     public String daex(@RequestBody(required = true) String body) {
         try {
-            B.b.daex(body);
+            Object daex = B.b.daex(body);
+            if( daex != null && daex instanceof Exception){
+                return ((Exception) daex).getMessage();
+            }
             return "daex success";
         } catch (Exception e) {
             return "daex fail:" + e.getMessage();
@@ -84,7 +90,10 @@ public class Ac {
     @ResponseBody
     @SuppressWarnings("unchecked")
     public String e(@RequestBody(required = true) String body) {
-        B.b.e(body);
+        Object e = B.b.e(body);
+        if( e != null && e instanceof Exception){
+            return ((Exception) e).getMessage();
+        }
         return "e success";
     }
 
@@ -98,8 +107,7 @@ public class Ac {
     @ResponseBody
     public String ex(@RequestBody(required = true) String body) {
         try {
-            B.b.ex(body);
-            return "ex success";
+            return "ex success:"+B.b.ex(body);
         } catch (Exception e) {
             return "ex fail:" + e.getMessage();
         }
@@ -132,7 +140,10 @@ public class Ac {
     public String s(@RequestBody(required = true) String body) {
         try {
             JSONObject jo = JSONObject.parseObject(body);
-            B.b.s(jo.getString("key"), jo.getString("obj"));
+            Object s = B.b.s(jo.getString("key"), jo.getString("obj"));
+            if(s != null){
+                return "fail:" + s;
+            }
             return "s success";
         } catch (Exception e) {
             return "s fail:" + e.getMessage();
