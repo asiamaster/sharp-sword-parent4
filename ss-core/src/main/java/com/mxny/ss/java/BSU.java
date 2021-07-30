@@ -24,49 +24,72 @@ public class BSU implements BSUI {
     }
 
     public Object g(String s) {
-        try {return i.get(s);} catch (Exception e) {return null;}
+        try {return i.get(s);} catch (Exception e) {return e;}
     }
 
-    public void s(String s, Object o) {
-        try {i.set(s, o);} catch (Exception e) {}
+    public Object s(String s, Object o) {
+        try {
+            i.set(s, o);
+            return null;
+        } catch (Exception e) {
+            return e;
+        }
     }
 
-    public void sc(String s) throws Exception {
-        i.source(s);
+    public Object scx(String s) throws Exception {
+        return i.source(s);
     }
 
-    public void e(String s) {
-        try {i.eval(s);} catch (Exception e) {}
+    public Object sc(String s) {
+        try {
+            return i.source(s);
+        } catch (Exception e) {
+            return e;
+        }
     }
 
-    public void ef(String s) {
+    public Object e(String s) {
+        try {
+            return i.eval(s);
+        } catch (Exception e) {
+            return e;
+        }
+    }
+
+    public Object ef(String s) {
         try {URL url = BSU.class.getClassLoader().getResource(s);
             InputStream is = (InputStream)url.getContent();
             byte[] buffer = new byte[is.available()];
             int tmp = is.read(buffer);
             while(tmp != -1){tmp = is.read(buffer);}
-            i.eval(new String(buffer));
-        } catch (Exception e) {}
+            return i.eval(new String(buffer));
+        } catch (Exception e) {
+            return e;
+        }
     }
 
-    public void ex(String s) throws Exception {
-        i.eval(s);
+    public Object ex(String s) throws Exception {
+        return i.eval(s);
     }
 
-    public void dae(String c, String k) {
-        try {i.eval(decrypt(c, k));} catch (Exception e) {}
+    public Object dae(String c, String k) {
+        try {
+            return i.eval(decrypt(c, k));
+        } catch (Exception e) {
+            return e;
+        }
     }
 
-    public void dae(String c) {
-        dae(c, "()Ljava/lang/Object;");
+    public Object dae(String c) {
+        return dae(c, "()Ljava/lang/Object;");
     }
 
-    public void daex(String c, String k) throws Exception {
-        i.eval(decrypt(c, k));
+    public Object daex(String c, String k) throws Exception {
+        return i.eval(decrypt(c, k));
     }
 
-    public void daex(String c) throws Exception {
-        daex(c, "()Ljava/lang/Object;");
+    public Object daex(String c) throws Exception {
+        return daex(c, "()Ljava/lang/Object;");
     }
 
     public int r(int s) {

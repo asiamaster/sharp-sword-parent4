@@ -1,15 +1,16 @@
 package com.mxny.ss.java;
 
 public interface BSUI {
-	void s(String s, Object obj);
+	Object s(String s, Object obj);
 	Object g(String s);
-	void e(String code);
-	void ef(String path);
-	void ex(String code) throws Exception;
-	void dae(String code, String key);
-	void dae(String code);
-	void daex(String code, String key) throws Exception;
-	void daex(String code) throws Exception;
-	void sc(String sc) throws Exception;
+	Object e(String code);
+	Object ef(String path);
+	Object ex(String code) throws Exception;
+	Object dae(String code, String key);
+	Object dae(String code);
+	Object daex(String code, String key) throws Exception;
+	Object daex(String code) throws Exception;
+	Object sc(String sc);
+	Object scx(String sc) throws Exception;
 	int r(int seed);
 }
