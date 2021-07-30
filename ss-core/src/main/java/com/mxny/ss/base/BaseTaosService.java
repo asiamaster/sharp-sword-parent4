@@ -84,7 +84,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      */
     @Transactional(rollbackFor = Exception.class)
     public void insertSelectiveByTags(T t) {
-        jdbcTemplate.execute(buildInsertSql(Lists.newArrayList(t)));
+        jdbcTemplate.execute(buildInsertSql(Lists.newArrayList(t), (Class)DTOUtils.getDTOClass(t)));
     }
 
     /**
@@ -101,7 +101,24 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         if(org.apache.commons.collections.CollectionUtils.isEmpty(list)){
             return;
         }
-        jdbcTemplate.execute(buildInsertSql(list));
+        jdbcTemplate.execute(buildInsertSql(list, (Class)DTOUtils.getDTOClass(list.get(0))));
+    }
+
+    /**
+     * 批量插入，指定对象类型
+     * 该方法不再支持动态代理DTO
+     * 例:
+     * INSERT INTO d21001 USING meters TAGS ('Beijing.Chaoyang', 2) VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
+     *             d21002 USING meters (groupdId) TAGS (2) VALUES ('2021-07-13 14:06:34.255', 10.15, 217, 0.33)
+     *             d21003 USING meters (groupdId) TAGS (2) (ts, current, phase) VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
+     * @param list
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void batchInsert(List<T> list, Class<T> tClass) {
+        if(org.apache.commons.collections.CollectionUtils.isEmpty(list)){
+            return;
+        }
+        jdbcTemplate.execute(buildInsertSql(list, tClass));
     }
 
     public T get(Long key) {
@@ -1027,7 +1044,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param datas
      * @return
      */
-    public String buildInsertSql(List<T> datas) {
+    public String buildInsertSql(List<T> datas, Class<T> dtoClass) {
         if(CollectionUtils.isEmpty(datas)){
             return null;
         }
@@ -1039,13 +1056,12 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         Collections.sort(tableDomains, (a, b) -> {
             return a.getDynamicTableName().compareTo(b.getDynamicTableName());
         });
-        Class<?> dtoClass = DTOUtils.getDTOClass(datas.get(0));
         Table table = dtoClass.getAnnotation(Table.class);
         String tableName = table == null ? CamelTool.camelToUnderline(dtoClass.getSimpleName(), false) : table.name();
 
         final List<Map<String, Object>> mappings;
         try {
-            mappings = beanTableMapping(datas);
+            mappings = beanTableMapping(datas, dtoClass);
         } catch (Exception e) {
             throw new DataErrorException(e);
         }
@@ -1058,7 +1074,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             ITaosTableDomain tableDomain = tableDomains.get(index);
             int k=0;
             //重复的表名只需要拼接values值部分
-            if(tableDomain.getDynamicTableName().equals(lastTableName)){
+            if(lastTableName.equals(tableDomain.getDynamicTableName())){
                 sqlBuilder.append(" (");
                 for (Map.Entry<String, Object> entry : mappings.get(index).entrySet()) {
                     Object value = entry.getValue();
@@ -1140,10 +1156,9 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param datas
      * @return
      */
-    private List<Map<String, Object>> beanTableMapping(List<T> datas) throws Exception {
-        Class<?> dtoClass = DTOUtils.getDTOClass(datas.get(0));
+    private List<Map<String, Object>> beanTableMapping(List<T> datas, Class<T> tClass) throws Exception {
         List<Map<String, Object>> list = new ArrayList<>(datas.size());
-        Method[] methods = dtoClass.getMethods();
+        Method[] methods = tClass.getMethods();
         //先计算出需要get的方法
         List<Method> getters = new ArrayList<>();
         for (Method method : methods) {
