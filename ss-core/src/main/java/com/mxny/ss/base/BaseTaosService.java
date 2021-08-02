@@ -347,16 +347,31 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         parseNullField(domain, criteria);
         List<Field> fields = new ArrayList<>();
         getDeclaredField(domain.getClass(), fields);
+        //用于在for中判断是否需要添加查询条件
+        ITaosTableDomain iTaosTableDomain = ((ITaosTableDomain) domain);
+        boolean taosTable = false;
+        if (domain instanceof ITaosTableDomain) {
+            taosTable = true;
+        }
         for(Field field : fields){
             Column column = field.getAnnotation(Column.class);
             String columnName = column == null ? field.getName() : column.name();
-//			跳过空值字段
+            //跳过空值字段
             if(isNullField(columnName, domain.getMetadata(IDTO.NULL_VALUE_FIELD))){
                 continue;
             }
             Transient transient1 = field.getAnnotation(Transient.class);
             if(transient1 != null) {
                 continue;
+            }
+            if(taosTable) {
+                Boolean containsTag = iTaosTableDomain.getContainsTag();
+                //默认查询所有字段(包含Tag)，如果包含Tag为false,则当有TaosTag注解时，不加入查询条件
+                if (containsTag != null && !containsTag) {
+                    if(field.getAnnotation(TaosTag.class) != null){
+                        continue;
+                    }
+                }
             }
             Like like = field.getAnnotation(Like.class);
             Operator operator = field.getAnnotation(Operator.class);
@@ -411,24 +426,9 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         if(domain.getMetadata(IDTO.OR_CONDITION_EXPR) != null){
             criteria = criteria.orCondition(domain.getMetadata(IDTO.OR_CONDITION_EXPR).toString());
         }
-
-        StringBuilder orderByClauseBuilder = new StringBuilder();
-        for(Field field : tClazz.getFields()) {
-            Transient transient1 = field.getAnnotation(Transient.class);
-            if(transient1 != null) {
-                continue;
-            }
-            OrderBy orderBy = field.getAnnotation(OrderBy.class);
-            if(orderBy == null) {
-                continue;
-            }
-            Column column = field.getAnnotation(Column.class);
-            String columnName = column == null ? field.getName() : column.name();
-            orderByClauseBuilder.append(","+columnName+" "+orderBy.value());
-        }
-        if(orderByClauseBuilder.length()>1) {
-            example.setOrderByClause(orderByClauseBuilder.substring(1));
-        }
+        //设置@OrderBy注解的排序(会被ITaosDomain中的排序字段覆盖)
+        buildFieldsOrderByClause(tClazz.getFields(), example);
+        //设置ITaosDomain中的排序字段(会覆盖@OrderBy注解的排序)
         setOrderBy(domain, example);
     }
 
@@ -478,11 +478,10 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param domain
      */
     protected void buildExampleByGetterMethods(T domain, Example example){
-        Example.Criteria criteria = example.createCriteria();
         Class tClazz = DTOUtils.getDTOClass(domain);
+        Example.Criteria criteria = example.createCriteria();
         //解析空值字段(where xxx is null)
         parseNullField(domain, criteria);
-
         List<Method> methods = new ArrayList<>();
         //设置子类和所有超类的方法
         getDeclaredMethod(tClazz, methods);
@@ -500,7 +499,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             Column column = method.getAnnotation(Column.class);
             //数据库列名
             String columnName = column == null ? POJOUtils.humpToLineFast(POJOUtils.getBeanField(method)) : column.name();
-//			跳过空值字段
+            //跳过空值字段
             if(isNullField(columnName, domain.getMetadata(IDTO.NULL_VALUE_FIELD))){
                 continue;
             }
@@ -562,8 +561,8 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             criteria = criteria.orCondition(domain.mget(IDTO.OR_CONDITION_EXPR).toString());
         }
         //设置@OrderBy注解的排序(会被ITaosDomain中的排序字段覆盖)
-        buildOrderByClause(methods, example);
-//		设置ITaosDomain中的排序字段(会覆盖@OrderBy注解的排序)
+        buildMethodsOrderByClause(methods, example);
+        //设置ITaosDomain中的排序字段(会覆盖@OrderBy注解的排序)
         setOrderBy(domain, example);
     }
 
@@ -821,11 +820,33 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         return sb;
     }
 
+    /**
+     * 设置@OrderBy注解的排序
+     */
+    private void buildFieldsOrderByClause(Field[] fields, Example example){
+        StringBuilder orderByClauseBuilder = new StringBuilder();
+        for(Field field : fields) {
+            Transient transient1 = field.getAnnotation(Transient.class);
+            if(transient1 != null) {
+                continue;
+            }
+            OrderBy orderBy = field.getAnnotation(OrderBy.class);
+            if(orderBy == null) {
+                continue;
+            }
+            Column column = field.getAnnotation(Column.class);
+            String columnName = column == null ? field.getName() : column.name();
+            orderByClauseBuilder.append(","+columnName+" "+orderBy.value());
+        }
+        if(orderByClauseBuilder.length()>1) {
+            example.setOrderByClause(orderByClauseBuilder.substring(1));
+        }
+    }
 
     /**
      * 设置@OrderBy注解的排序
      */
-    private void buildOrderByClause(List<Method> methods, Example example){
+    private void buildMethodsOrderByClause(List<Method> methods, Example example){
         StringBuilder orderByClauseBuilder = new StringBuilder();
         for(Method method : methods){
             Transient transient1 = method.getAnnotation(Transient.class);
@@ -1044,7 +1065,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param datas
      * @return
      */
-    public String buildInsertSql(List<T> datas, Class<T> dtoClass) {
+    private String buildInsertSql(List<T> datas, Class<T> dtoClass) {
         if(CollectionUtils.isEmpty(datas)){
             return null;
         }
@@ -1065,88 +1086,108 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         } catch (Exception e) {
             throw new DataErrorException(e);
         }
-        int mappingSize = mappings.get(0).size();
+        //第0条数据映射，用于构建sql的columns部分
+        Map<String, Object> mappings0 = mappings.get(0);
+        int mappingSize = mappings0.size();
         StringBuilder sqlBuilder = new StringBuilder("INSERT INTO ");
         //记录当前表名，因为排了序，有不同的表名后，需要重新计算SQL
         String lastTableName = "";
         int size = tableDomains.size();
         for (int index = 0; index < size; index++) {
             ITaosTableDomain tableDomain = tableDomains.get(index);
-            int k=0;
             //重复的表名只需要拼接values值部分
             if(lastTableName.equals(tableDomain.getDynamicTableName())){
-                sqlBuilder.append(" (");
-                for (Map.Entry<String, Object> entry : mappings.get(index).entrySet()) {
-                    Object value = entry.getValue();
-                    if(value instanceof Number) {
-                        sqlBuilder.append(value);
-                    }else{
-                        sqlBuilder.append("'").append(value).append("'");
-                    }
-                    if(k < mappingSize-1) {
-                        sqlBuilder.append(", ");
-                    }
-                    k++;
-                }
-                sqlBuilder.append(") ");
+                appendValues(sqlBuilder, mappings.get(index), mappingSize);
                 continue;
             }
             sqlBuilder.append(tableDomain.getDynamicTableName()).append(" USING ").append(tableName);
             //获取TaosTag
-            List<String> tags = getTags(dtoClass);
-            if(!tags.isEmpty()){
-                sqlBuilder.append(" (");
-                int tagSize = tags.size();
-                tags.forEach(LambadaTools.forEachWithIndex((item, idx) -> {
-                    sqlBuilder.append(item);
-                    if(idx < (tagSize-1)) {
-                        sqlBuilder.append(", ");
-                    }
-                }));
-                sqlBuilder.append(") TAGS (");
-                tags.forEach(LambadaTools.forEachWithIndex((item, i) -> {
-                    Object tagValue = POJOUtils.getProperty(tableDomain, item);
-                    if(tagValue instanceof Number){
-                        sqlBuilder.append(tagValue);
-                    }else {
-                        sqlBuilder.append("'").append(tagValue).append("'");
-                    }
-                    if(i < (tagSize-1)) {
-                        sqlBuilder.append(", ");
-                    }
-                }));
-                sqlBuilder.append(") ");
-            }
+            appendTags(sqlBuilder, dtoClass, tableDomain);
             //拼接子表字段
-            sqlBuilder.append("(");
-            int i=0;
-            for (Map.Entry<String, Object> entry : mappings.get(0).entrySet()) {
-                sqlBuilder.append(entry.getKey());
-                if(i < (mappingSize-1)) {
-                    sqlBuilder.append(", ");
-                }
-                i++;
-            }
-            sqlBuilder.append(") ");
+            appendColumns(sqlBuilder, mappings0, mappingSize);
+            sqlBuilder.append("VALUES");
             //拼接字段值
-            sqlBuilder.append("VALUES (");
-            int j=0;
-            for (Map.Entry<String, Object> entry : mappings.get(index).entrySet()) {
-                Object value = entry.getValue();
-                if(value instanceof Number) {
-                    sqlBuilder.append(value);
-                }else{
-                    sqlBuilder.append("'").append(value).append("'");
-                }
-                if(j < (mappingSize-1)) {
+            appendValues(sqlBuilder, mappings.get(index), mappingSize);
+            lastTableName = tableDomain.getDynamicTableName();
+        }
+        return sqlBuilder.toString();
+    }
+
+    /**
+     * 添加insert values部分
+     * @param sqlBuilder
+     * @param item
+     * @param mappingSize
+     */
+    private void appendValues(StringBuilder sqlBuilder, Map<String, Object> item, int mappingSize){
+        int k=0;
+        sqlBuilder.append(" (");
+        for (Map.Entry<String, Object> entry : item.entrySet()) {
+            Object value = entry.getValue();
+            if(value instanceof Number) {
+                sqlBuilder.append(value);
+            }else{
+                sqlBuilder.append("'").append(value).append("'");
+            }
+            if(k < mappingSize-1) {
+                sqlBuilder.append(", ");
+            }
+            k++;
+        }
+        sqlBuilder.append(") ");
+    }
+
+    /**
+     * 添加insert子表列
+     * @param sqlBuilder
+     * @param item
+     * @param mappingSize
+     */
+    private void appendColumns(StringBuilder sqlBuilder, Map<String, Object> item, int mappingSize){
+        sqlBuilder.append("(");
+        int i=0;
+        for (Map.Entry<String, Object> entry : item.entrySet()) {
+            sqlBuilder.append(entry.getKey());
+            if(i < (mappingSize-1)) {
+                sqlBuilder.append(", ");
+            }
+            i++;
+        }
+        sqlBuilder.append(") ");
+    }
+
+    /**
+     * 添加insert tags，包含columns和values
+     * @param sqlBuilder
+     * @param dtoClass
+     * @param tableDomain
+     */
+    private void appendTags(StringBuilder sqlBuilder, Class<T> dtoClass, ITaosTableDomain tableDomain){
+        //获取TaosTag
+        List<String> tags = getTags(dtoClass);
+        if(!tags.isEmpty()){
+            sqlBuilder.append(" (");
+            int tagSize = tags.size();
+            tags.forEach(LambadaTools.forEachWithIndex((item, idx) -> {
+                sqlBuilder.append(item);
+                if(idx < (tagSize-1)) {
                     sqlBuilder.append(", ");
                 }
-                j++;
-            }
+            }));
+            sqlBuilder.append(") TAGS (");
+            tags.forEach(LambadaTools.forEachWithIndex((item, i) -> {
+                Object tagValue = POJOUtils.getProperty(tableDomain, item);
+                if(tagValue instanceof Number){
+                    sqlBuilder.append(tagValue);
+                }else {
+                    sqlBuilder.append("'").append(tagValue).append("'");
+                }
+                if(i < (tagSize-1)) {
+                    sqlBuilder.append(", ");
+                }
+            }));
             sqlBuilder.append(") ");
-            lastTableName = tableDomain.getDynamicTableName();
-        };
-        return sqlBuilder.toString();
+        }
     }
 
     /**
