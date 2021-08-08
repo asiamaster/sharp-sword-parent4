@@ -168,7 +168,7 @@ public class DTOUtils {
 	 * @return
 	 */
 	public  final static Class<?> getInstanceClass(Class<? extends IDTO> proxyClz) {
-		return DTOInstance.cache.get(proxyClz);
+		return DTOInstance.CLASS_CACHE.get(proxyClz);
 	}
 
 	/**
@@ -276,22 +276,16 @@ public class DTOUtils {
 	 * @return
 	 */
 	public static <T extends IDTO> T newInstance(Class<T> dtoClz, boolean genDef) {
-		Class<? extends IDTO> clazz = DTOInstance.cache.get(dtoClz);
-		try {
-			if(clazz == null){
-				return newDTO(dtoClz);
-			}
-			T t = (T) clazz.newInstance();
-			//		 加入缺省值
-			if(genDef) {
-				generateDefaultValue(t.aget(), dtoClz);
-			}
-			return t;
-		} catch (InstantiationException e) {
-			return newDTO(dtoClz);
-		} catch (IllegalAccessException e) {
+		Class<? extends IDTO> clazz = DTOInstance.CLASS_CACHE.get(dtoClz);
+		if(clazz == null){
 			return newDTO(dtoClz);
 		}
+		T t = (T) ((ICreative)DTOInstance.INSTANCE_CACHE.get(dtoClz)).createInstance();
+		//		 加入缺省值
+		if(genDef) {
+			generateDefaultValue(t.aget(), dtoClz);
+		}
+		return t;
 	}
 
 	/**
