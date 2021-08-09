@@ -168,7 +168,7 @@ public class DTOUtils {
 	 * @return
 	 */
 	public  final static Class<?> getInstanceClass(Class<? extends IDTO> proxyClz) {
-		return DTOInstance.cache.get(proxyClz);
+		return DTOInstance.CLASS_CACHE.get(proxyClz);
 	}
 
 	/**
@@ -276,22 +276,16 @@ public class DTOUtils {
 	 * @return
 	 */
 	public static <T extends IDTO> T newInstance(Class<T> dtoClz, boolean genDef) {
-		Class<? extends IDTO> clazz = DTOInstance.cache.get(dtoClz);
-		try {
-			if(clazz == null){
-				return newDTO(dtoClz);
-			}
-			T t = (T) clazz.newInstance();
-			//		 加入缺省值
-			if(genDef) {
-				generateDefaultValue(t.aget(), dtoClz);
-			}
-			return t;
-		} catch (InstantiationException e) {
-			return newDTO(dtoClz);
-		} catch (IllegalAccessException e) {
+		Class<? extends IDTO> clazz = DTOInstance.CLASS_CACHE.get(dtoClz);
+		if(clazz == null){
 			return newDTO(dtoClz);
 		}
+		T t = (T) ((ICreative)DTOInstance.INSTANCE_CACHE.get(dtoClz)).createInstance();
+		//		 加入缺省值
+		if(genDef) {
+			generateDefaultValue(t.aget(), dtoClz);
+		}
+		return t;
 	}
 
 	/**
@@ -524,27 +518,27 @@ public class DTOUtils {
 		return link(master, second, masterClazz, false);
 	}
 
-    /**
-     * 将两个DTO代理对象连接起来<br>
-     * 要求两个DTO的字段没有重复的,有重复的则以master为准
-     *
-     * @param <T>
-     * @param master
-     * @param second
-     * @param masterClazz
-     * @return
-     */
-    public static <T extends IDTO> T link(T master, IDTO second, Class<T> masterClazz, boolean isInstance) {
-        if (second == null) {
-            return master;
-        }
-        if (master == null) {
-            return as(second, masterClazz);
-        }
-        DTO temp = go(second);
-        temp.putAll(go(master));
-        return isInstance ? asInstance(second, masterClazz) : as(second, masterClazz);
-    }
+	/**
+	 * 将两个DTO代理对象连接起来<br>
+	 * 要求两个DTO的字段没有重复的,有重复的则以master为准
+	 *
+	 * @param <T>
+	 * @param master
+	 * @param second
+	 * @param masterClazz
+	 * @return
+	 */
+	public static <T extends IDTO> T link(T master, IDTO second, Class<T> masterClazz, boolean isInstance) {
+		if (second == null) {
+			return master;
+		}
+		if (master == null) {
+			return as(second, masterClazz);
+		}
+		DTO temp = go(second);
+		temp.putAll(go(master));
+		return isInstance ? asInstance(second, masterClazz) : as(second, masterClazz);
+	}
 
 	//  ===================================  内部方法  ===================================
 
@@ -570,7 +564,7 @@ public class DTOUtils {
 	 * @return
 	 */
 	final static Object setProperty(Object object, String name,
-	                                Object value) {
+									Object value) {
 		POJOUtils.setProperty(object, name, value);
 		return object;
 	}
@@ -587,7 +581,7 @@ public class DTOUtils {
 	 */
 	@SuppressWarnings("unchecked")
 	final static <T extends IDTO> T internalProxy(DTO realObj,
-	                                              Class<T> proxyClz, Class<? extends DTOHandler> handlerClazz) {
+												  Class<T> proxyClz, Class<? extends DTOHandler> handlerClazz) {
 		T retval = null;
 		// 如果是接口方式,则直接根据接口来创建
 		if (proxyClz.isInterface()) {
@@ -625,7 +619,7 @@ public class DTOUtils {
 	 */
 	@SuppressWarnings("unchecked")
 	final static <T extends IDTO> T internalAs(Object source,
-	                                           Class<T> proxyClz) {
+											   Class<T> proxyClz) {
 		assert (source != null);
 		assert (proxyClz != null);
 
@@ -679,7 +673,7 @@ public class DTOUtils {
 	 */
 	@SuppressWarnings("unchecked")
 	final static <T extends IDTO> T internalAsInstance(Object source,
-											   Class<T> proxyClz) {
+													   Class<T> proxyClz) {
 		assert (source != null);
 		assert (proxyClz != null);
 
@@ -765,7 +759,7 @@ public class DTOUtils {
 	 */
 	@SuppressWarnings("unchecked")
 	final static boolean internalIsProxy(Object object,
-	                                     Class<? extends DTOHandler> handlerClazz) {
+										 Class<? extends DTOHandler> handlerClazz) {
 		assert (object != null);
 		assert (handlerClazz != null);
 		// 如果是代理类，则检查代理处理器是否为DTOHandler,此处认为所有的DTO的代理处理器都是DTOHandler
@@ -791,7 +785,7 @@ public class DTOUtils {
 	 */
 	@SuppressWarnings("unchecked")
 	final static <T extends IDTO> T proxy(DTOHandler handler,
-	                                      Class<T> proxyClz) {
+										  Class<T> proxyClz) {
 		T retval = null;
 		// 是接口
 		if (proxyClz.isInterface()) {

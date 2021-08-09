@@ -91,7 +91,9 @@ public class DTOFactory implements IDTOFactory {
                     if (StringUtils.isNotBlank(file)) {
                         ctClass.writeFile(file);
                     }
-                    DTOInstance.cache.put(dtoClass, (Class) ctClass.toClass());
+                    Class aClass = ctClass.toClass();
+                    DTOInstance.CLASS_CACHE.put(dtoClass, (Class) aClass);
+                    DTOInstance.INSTANCE_CACHE.put(dtoClass, (IDTO) aClass.newInstance());
                 } catch (Exception e) {
                     e.printStackTrace();
                 }
@@ -253,8 +255,9 @@ public class DTOFactory implements IDTOFactory {
     @SuppressWarnings(value = {"unchecked", "deprecation"})
     private <T extends IDTO> CtClass createDTOCtClass(Class<T> clazz) throws Exception {
         CtClass intfCtClass = classPool.get(clazz.getName());
+        CtClass creativeCtClass = classPool.get(ICreative.class.getName());
         CtClass implCtClass = classPool.makeClass(clazz.getName() + DTOInstance.SUFFIX);
-        implCtClass.setInterfaces(new CtClass[]{intfCtClass});
+        implCtClass.setInterfaces(new CtClass[]{intfCtClass, creativeCtClass});
         CtField $delegateField = CtField.make("private com.mxny.ss.dto.DTO $delegate;", implCtClass);
         implCtClass.addField($delegateField);
         CtConstructor defaultConstructor = new CtConstructor(null, implCtClass);
@@ -286,6 +289,8 @@ public class DTOFactory implements IDTOFactory {
         implCtClass.addMethod(msetMethod);
         implCtClass.addMethod(msetAllMethod);
 
+        CtMethod createInstanceMethod = CtMethod.make("public com.mxny.ss.dto.IDTO createInstance(){return new "+clazz.getName() + DTOInstance.SUFFIX+"();}", implCtClass);
+        implCtClass.addMethod(createInstanceMethod);
         return implCtClass;
     }
 
