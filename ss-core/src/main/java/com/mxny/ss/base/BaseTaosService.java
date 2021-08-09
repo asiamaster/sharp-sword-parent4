@@ -1222,7 +1222,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             for (Method getter : getters) {
                 Object value = getter.invoke(data);
                 if(value != null) {
-                    beanMap.put(getColumnName(getter), getter.invoke(data));
+                    beanMap.put(getColumnName(getter), value);
                 }
             }
             list.add(beanMap);
