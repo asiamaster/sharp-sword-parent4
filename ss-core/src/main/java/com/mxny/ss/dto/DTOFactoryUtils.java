@@ -12,6 +12,12 @@ public class DTOFactoryUtils {
 
     public static IDTOFactory idtoFactory;
 
+    static {
+        if(idtoFactory == null){
+            idtoFactory = DTOInstFactory.getInstance();
+        }
+    }
+
     /**
      * 注册DTO
      * @param importingClassMetadata
