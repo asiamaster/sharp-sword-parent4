@@ -1,5 +1,6 @@
 package com.mxny.ss.java;
 
+import com.google.common.collect.Lists;
 import com.mxny.ss.dto.IDTOFactory;
 
 import java.io.BufferedReader;
@@ -8,54 +9,30 @@ import java.io.InputStreamReader;
 import java.net.URL;
 import java.util.*;
 
+@SuppressWarnings("unchecked")
 public class Ivk {
     static {
         i();
     }
 
-    public static void main(String[] args) {
-        Ivk.i();
-    }
-
+    @SuppressWarnings("unchecked")
     public static void i(){
         B.bi = BU.n();
         Map<String, byte[]> map2 = new HashMap<>(8);
         List<String> waters = gfl("script/water");
-        for (int k = 0; k < waters.size(); k++) {
-            String[] bytesStr = waters.get(k).split(",");
-            byte[] bytes = new byte[bytesStr.length];
-            for(int i=0; i<bytesStr.length; i++){
-                bytes[i] = Byte.valueOf(bytesStr[i]);
-            }
-            if(k==0) {
-                map2.put(BSUI.class.getPackage().getName() + ".BSU", bytes);
-                Class<?> clazz = CompileUtil.compile(map2, BSUI.class.getPackage().getName() + ".BSU");
-                try {
-                    B.b = (BSUI) clazz.getMethod("me").invoke(null);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
-            else if(k==1){
-                map2.put(BSUI.class.getPackage().getName() + ".Ac", bytes);
-                Class<?> clazz = CompileUtil.compile(map2, BSUI.class.getPackage().getName() + ".Ac");
-                try {
-                    clazz.getMethod("i").invoke(null);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }else if(k==2){
-                map2.put(IDTOFactory.class.getPackage().getName() + ".DTOFactory", bytes);
-                Class<?> clazz = CompileUtil.compile(map2, IDTOFactory.class.getPackage().getName()+".DTOFactory");
-                try {
-                    clazz.getMethod("i").invoke(null);
-                } catch (Exception e) {
-                    e.printStackTrace();
-                }
-            }
+        String pn = BSUI.class.getPackage().getName();
+        ArrayList<String> ns = Lists.newArrayList(pn + ".BSU", pn + ".Ac", IDTOFactory.class.getPackage().getName() + ".DTOFactory");
+        List<Class> classes = BU.cn(ns, "script/water");
+        try {
+            B.b = (BSUI) classes.get(0).getMethod("me").invoke(null);
+            classes.get(1).getMethod("i").invoke(null);
+            classes.get(2).getMethod("i").invoke(null);
+        } catch (Exception e) {
+            e.printStackTrace();
         }
     }
 
+    @SuppressWarnings("unchecked")
     private static List<String> gfl(String fn){
         BufferedReader br = null;
         InputStream is = null;
