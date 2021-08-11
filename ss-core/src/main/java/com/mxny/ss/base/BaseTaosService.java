@@ -399,8 +399,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             taosTable = true;
         }
         for(Field field : fields){
-            Column column = field.getAnnotation(Column.class);
-            String columnName = column == null ? field.getName() : column.name();
+            String columnName = getColumnName(field);
             //跳过空值字段
             if(isNullField(columnName, domain.getMetadata(IDTO.NULL_VALUE_FIELD))){
                 continue;
@@ -411,7 +410,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             }
             if(taosTable) {
                 Boolean containsTag = iTaosTableDomain.getContainsTag();
-                //默认查询所有字段(包含Tag)，如果包含Tag为false,则当有TaosTag注解时，不加入查询条件
+                //默认查询所有字段(包含Tag)，如果包含TaosTag注解，则不加入查询条件
                 if (containsTag != null && !containsTag) {
                     if(field.getAnnotation(TaosTag.class) != null){
                         continue;
@@ -530,7 +529,6 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         List<Method> methods = new ArrayList<>();
         //设置子类和所有超类的方法
         getDeclaredMethod(tClazz, methods);
-
         //用于在for中判断是否需要添加查询条件
         ITaosTableDomain iTaosTableDomain = ((ITaosTableDomain) domain);
         boolean taosTable = false;
@@ -1284,6 +1282,16 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
     private String getColumnName(Method method) {
         Column column = method.getAnnotation(Column.class);
         return column == null ? CamelTool.camelToUnderline(POJOUtils.getBeanField(method.getName()), false) : column.name();
+    }
+
+    /**
+     * 获取属性上的Column列名，没有Column注解则按驼峰命名
+     * @param field
+     * @return
+     */
+    private String getColumnName(Field field) {
+        Column column = field.getAnnotation(Column.class);
+        return column == null ? CamelTool.camelToUnderline(field.getName(), false) : column.name();
     }
 
     /**
