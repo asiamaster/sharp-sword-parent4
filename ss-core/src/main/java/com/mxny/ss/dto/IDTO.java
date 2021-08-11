@@ -20,6 +20,9 @@ public interface IDTO extends Serializable {
 	//强制空值, DTO或实体的metadata中的key，用于BaseServiceImpl中的ByExample查询
 	@Transient
 	String NULL_VALUE_FIELD = "null_value_field";
+	//强制非空值, DTO或实体的metadata中的key，用于BaseServiceImpl中的ByExample查询
+	@Transient
+	String NOT_NULL_VALUE_FIELD = "not_null_value_field";
 	//错误消息的key
 	String ERROR_MSG_KEY = "errorMessage";
 	/**

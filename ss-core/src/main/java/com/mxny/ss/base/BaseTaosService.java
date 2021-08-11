@@ -390,6 +390,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         Example.Criteria criteria = example.createCriteria();
         //解析空值字段
         parseNullField(domain, criteria);
+        parseNotNullField(domain, criteria);
         List<Field> fields = new ArrayList<>();
         getDeclaredField(domain.getClass(), fields);
         //用于在for中判断是否需要添加查询条件
@@ -401,7 +402,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         for(Field field : fields){
             String columnName = getColumnName(field);
             //跳过空值字段
-            if(isNullField(columnName, domain.getMetadata(IDTO.NULL_VALUE_FIELD))){
+            if(isNullField(columnName, domain.getMetadata(IDTO.NULL_VALUE_FIELD)) || isNotNullField(columnName, domain.getMetadata(IDTO.NOT_NULL_VALUE_FIELD))){
                 continue;
             }
             Transient transient1 = field.getAnnotation(Transient.class);
@@ -526,6 +527,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         Example.Criteria criteria = example.createCriteria();
         //解析空值字段(where xxx is null)
         parseNullField(domain, criteria);
+        parseNotNullField(domain, criteria);
         List<Method> methods = new ArrayList<>();
         //设置子类和所有超类的方法
         getDeclaredMethod(tClazz, methods);
@@ -543,7 +545,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             //数据库列名
             String columnName = column == null ? POJOUtils.humpToLineFast(POJOUtils.getBeanField(method)) : column.name();
             //跳过空值字段
-            if(isNullField(columnName, domain.getMetadata(IDTO.NULL_VALUE_FIELD))){
+            if(isNullField(columnName, domain.getMetadata(IDTO.NULL_VALUE_FIELD)) || isNotNullField(columnName, domain.getMetadata(IDTO.NOT_NULL_VALUE_FIELD))){
                 continue;
             }
             Transient transient1 = method.getAnnotation(Transient.class);
@@ -1067,24 +1069,37 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @return
      */
     private boolean isNullField(String columnName, Object nullValueField){
-        boolean isNullField = false;
         if(nullValueField != null){
             if(nullValueField instanceof String){
                 if(columnName.equals(nullValueField)){
-                    isNullField = true;
+                    return true;
                 }
             }else if(nullValueField instanceof List){
-                List<String> nullValueFields = (List)nullValueField;
-                for(String field : nullValueFields){
-                    if(columnName.equals(field)){
-                        isNullField = true;
-                        break;
-                    }
-                }
+                return ((List) nullValueField).contains(columnName);
             }
         }
-        return isNullField;
+        return false;
     }
+
+    /**
+     * 判断是否为空值字段
+     * @param columnName
+     * @param notNullValueField
+     * @return
+     */
+    private boolean isNotNullField(String columnName, Object notNullValueField){
+        if(notNullValueField != null){
+            if(notNullValueField instanceof String){
+                if(columnName.equals(notNullValueField)){
+                    return true;
+                }
+            }else if(notNullValueField instanceof List){
+                return ((List) notNullValueField).contains(columnName);
+            }
+        }
+        return false;
+    }
+
     /**
      * 如果metadata中有空值字段名，则解析为field is null
      */
@@ -1098,6 +1113,24 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                 List<String> nullValueFields = (List)nullValueField;
                 for(String field : nullValueFields){
                     criteria = criteria.andCondition(field + " is null ");
+                }
+            }
+        }
+    }
+
+    /**
+     * 如果metadata中有非空值字段名，则解析为field is not null
+     */
+    private void parseNotNullField(T domain, Example.Criteria criteria){
+        //如果metadata中有空值字段名，则解析为field is null
+        Object notNullValueField = DTOUtils.getDTOClass(domain).isInterface() ? domain.mget(IDTO.NOT_NULL_VALUE_FIELD) : domain.getMetadata(IDTO.NOT_NULL_VALUE_FIELD);
+        if(notNullValueField != null){
+            if(notNullValueField instanceof String){
+                criteria = criteria.andCondition(notNullValueField + " is not null ");
+            }else if(notNullValueField instanceof List){
+                List<String> nullValueFields = (List)notNullValueField;
+                for(String field : nullValueFields){
+                    criteria = criteria.andCondition(field + " is not null ");
                 }
             }
         }
