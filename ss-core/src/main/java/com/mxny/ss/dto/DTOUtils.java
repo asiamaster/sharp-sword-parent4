@@ -452,6 +452,16 @@ public class DTOUtils {
 	}
 
 	/**
+	 * 判断是否为DTO对象的实例<br>
+	 *
+	 * @param clazz
+	 * @return
+	 */
+	public static boolean isInstance(Class clazz) {
+		return clazz.getName().endsWith(DTOInstance.SUFFIX);
+	}
+
+	/**
 	 * DTO对象转成实体对象
 	 *
 	 * @param <M>

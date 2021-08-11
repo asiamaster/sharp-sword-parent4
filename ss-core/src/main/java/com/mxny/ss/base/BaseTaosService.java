@@ -6,6 +6,7 @@ import com.google.common.collect.Lists;
 import com.mxny.ss.dao.ExampleExpand;
 import com.mxny.ss.domain.BaseDomain;
 import com.mxny.ss.domain.EasyuiPageOutput;
+import com.mxny.ss.domain.annotation.Func;
 import com.mxny.ss.domain.annotation.Like;
 import com.mxny.ss.domain.annotation.Operator;
 import com.mxny.ss.domain.annotation.SqlOperator;
@@ -139,7 +140,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
     private T getDefaultBean(Class tClazz){
         T domain = null;
         if(tClazz.isInterface()){
-            domain = DTOUtils.newDTO((Class<T>)tClazz);
+            domain = DTOUtils.newInstance((Class<T>)tClazz);
         }else{
             try {
                 domain = (T)tClazz.newInstance();
@@ -163,44 +164,88 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         if(!(domain instanceof ITaosTableDomain)){
             return exampleExpand;
         }
+        Class<?> domainClass = DTOUtils.getDTOClass(domain);
         ITaosTableDomain iTaosTableDomain =((ITaosTableDomain) domain);
         //这里构建Example，并设置selectColumns
         Set<String> columnsSet = iTaosTableDomain.getSelectColumns();
         if(columnsSet == null){
             columnsSet = new HashSet<>();
-            Method[] methods = entityClass.getMethods();
-            //先计算出需要get的方法
+            Method[] methods = domainClass.getMethods();
+            //有Func注解的函数
+            List<Method> funcMethods = new ArrayList<>();
+            //先找出所有Func注解
             for (Method method : methods) {
                 if(!POJOUtils.isGetMethod(method)){
                     continue;
                 }
-                Boolean containsTag = iTaosTableDomain.getContainsTag();
-                //默认查询所有字段(包含Tag)
-                if(containsTag != null && !containsTag) {
-                    if(method.getAnnotation(TaosTag.class) != null){
+                Func func = method.getAnnotation(Func.class);
+                if (func != null) {
+                    funcMethods.add(method);
+                }
+            }
+            //select的列中只包含有函数注解的
+            if (!funcMethods.isEmpty()) {
+                for (Method funcMethod : funcMethods) {
+                    String columnName = getColumnName(funcMethod);
+                    Func func = funcMethod.getAnnotation(Func.class);
+                    String alias = StringUtils.isBlank(func.alias()) ? columnName : func.alias();
+                    columnsSet.add(new StringBuilder().append(func.value()).append("(").append(columnName).append(") as ").append(alias).toString());
+                }
+            }else {
+                //先计算出需要get的方法
+                for (Method method : methods) {
+                    if (!POJOUtils.isGetMethod(method)) {
                         continue;
                     }
+                    Boolean containsTag = iTaosTableDomain.getContainsTag();
+                    //默认查询所有字段(包含Tag)
+                    if (containsTag != null && !containsTag) {
+                        if (method.getAnnotation(TaosTag.class) != null) {
+                            continue;
+                        }
+                    }
+                    if (method.getAnnotation(Transient.class) != null) {
+                        continue;
+                    }
+                    if (method.getName().equals("getMetadata") || method.getName().equals("getFields") || method.getName().equals("getDynamicTableName")) {
+                        continue;
+                    }
+                    columnsSet.add(getColumnName(method));
                 }
-                if(method.getAnnotation(Transient.class) != null){
-                    continue;
-                }
-                if(method.getName().equals("getMetadata") || method.getName().equals("getFields") || method.getName().equals("getDynamicTableName")){
-                    continue;
-                }
-                columnsSet.add(POJOUtils.getBeanField(method));
             }
         }
-        ExampleExpand exampleExpand1 = ExampleExpand.of(entityClass);
-        //防止SQL注入
-        exampleExpand1.selectProperties(columnsSet.toArray(new String[]{}));
-        if(domain instanceof IMybatisForceParams) {
-            IMybatisForceParams iMybatisForceParams = ((IMybatisForceParams) domain);
+
+        if(domain instanceof IMybatisForceParams){
+            IMybatisForceParams iMybatisForceParams =((IMybatisForceParams) domain);
             //设置WhereSuffixSql
-            if (StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())) {
-                exampleExpand1.setWhereSuffixSql(iMybatisForceParams.getWhereSuffixSql());
+            if(StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())){
+                exampleExpand.setWhereSuffixSql(iMybatisForceParams.getWhereSuffixSql());
             }
         }
-        return exampleExpand1;
+
+        //如果不检查，则用反射强制注入
+//        if (checkInjection == null || !checkInjection) {
+            try {
+                Field selectColumnsField = Example.class.getDeclaredField("selectColumns");
+                selectColumnsField.setAccessible(true);
+                selectColumnsField.set(exampleExpand, columnsSet);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return exampleExpand;
+//        } else {//如果要检查字段(防止注入)
+//            ExampleExpand exampleExpand1 = ExampleExpand.of(entityClass);
+//            //防止SQL注入
+//            exampleExpand1.selectProperties(columnsSet.toArray(new String[]{}));
+//            if (domain instanceof IMybatisForceParams) {
+//                IMybatisForceParams iMybatisForceParams = ((IMybatisForceParams) domain);
+//                //设置WhereSuffixSql
+//                if (StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())) {
+//                    exampleExpand1.setWhereSuffixSql(iMybatisForceParams.getWhereSuffixSql());
+//                }
+//            }
+//        }
+//        return exampleExpand1;
     }
 
     /**
