@@ -321,7 +321,7 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 	private T getDefaultBean(Class tClazz){
 		T domain = null;
 		if(tClazz.isInterface()){
-			domain = DTOUtils.newDTO((Class<T>)tClazz);
+			domain = DTOUtils.newInstance((Class<T>)tClazz);
 		}else{
 			try {
 				domain = (T)tClazz.newInstance();
