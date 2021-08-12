@@ -389,6 +389,45 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 	 */
 	@Override
 	public List<T> listByExample(T domain){
+		return getDao().selectByExampleExpand(buildExample(domain));
+	}
+
+	/**
+	 * 用于支持like, order by 的单条查询
+	 * @param domain
+	 * @return
+	 */
+	@Override
+	public T getByExample(T domain){
+		return getDao().selectOneByExampleExpand(buildExample(domain));
+	}
+
+	/**
+	 * 用于支持like, order by 的查询，支持分页
+	 * @param domain
+	 * @return
+	 */
+	public Object getObjectByExample(T domain){
+		return getDao().selectOneByExampleExpand(buildExample(domain));
+	}
+
+	/**
+	 * 用于支持like, order by 的count查询
+	 * @param domain
+	 * @return
+	 */
+	@Override
+	public int countByExample(T domain){
+		return getDao().selectCountByExample(buildExample(domain));
+	}
+
+	/**
+	 * 根据DTO构建Example
+	 * @param domain
+	 * @return
+	 */
+	@Override
+	public ExampleExpand buildExample(T domain){
 		Class tClazz = getSuperClassGenricType(getClass(), 0);
 		if(null == domain) {
 			domain = getDefaultBean (tClazz);
@@ -413,7 +452,7 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 		if(domain instanceof IDynamicTableName){
 			example.setTableName(((IDynamicTableName)domain).getDynamicTableName());
 		}
-		return getDao().selectByExampleExpand(example);
+		return example;
 	}
 
 	/**

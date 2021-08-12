@@ -22,10 +22,18 @@ public interface IDomain<KEY extends Serializable> extends IDTO {
 	Integer getRows();
 	void setRows(Integer rows);
 
+	/**
+	 * 排序字段，多个以逗号分隔
+	 * @return
+	 */
 	@Transient
 	String getSort();
 	void setSort(String sort);
 
+	/**
+	 * 排序方式asc,desc，多个以逗号分隔
+	 * @return
+	 */
 	@Transient
 	String getOrder();
 	void setOrder(String order);

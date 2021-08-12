@@ -253,8 +253,43 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param domain
      * @return
      */
-    
     public List<T> listByExample(T domain){
+        return getDao().selectByExampleExpand(buildExample(domain));
+    }
+
+    /**
+     * 用于支持like, order by 的查询，支持分页
+     * @param domain
+     * @return
+     */
+    public T getByExample(T domain){
+        return getDao().selectOneByExampleExpand(buildExample(domain));
+    }
+
+    /**
+     * 用于支持like, order by 的查询，支持分页
+     * @param domain
+     * @return
+     */
+    public Object getObjectByExample(T domain){
+        return getDao().selectOneByExampleExpand(buildExample(domain));
+    }
+
+    /**
+     * 用于支持like, order by 的查询，支持分页
+     * @param domain
+     * @return
+     */
+    public int countByExample(T domain){
+        return getDao().selectCountByExample(buildExample(domain));
+    }
+
+    /**
+     * 构建example
+     * @param domain
+     * @return
+     */
+    public ExampleExpand buildExample(T domain){
         Class tClazz = getSuperClassGenricType(getClass(), 0);
         if(null == domain) {
             domain = getDefaultBean (tClazz);
@@ -282,7 +317,14 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                 example.setTableName(dynamicTableName);
             }
         }
-        return getDao().selectByExampleExpand(example);
+        //设置动态表名
+        if(domain instanceof IDynamicResultType){
+            String resultType = ((IDynamicResultType) domain).getResultType();
+            if(StringUtils.isNotBlank(resultType)) {
+                example.setResultType(resultType);
+            }
+        }
+        return example;
     }
 
     

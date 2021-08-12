@@ -1,5 +1,6 @@
 package com.mxny.ss.base;
 
+import com.mxny.ss.dao.ExampleExpand;
 import com.mxny.ss.domain.BasePage;
 import com.mxny.ss.domain.EasyuiPageOutput;
 
@@ -200,6 +201,28 @@ public interface BaseService<T,KEY extends Serializable> {
 	 * @return
 	 */
 	List<T> listByExample(T domain);
+
+	/**
+	 * 用于支持like, order by 的单条查询
+	 * @param domain
+	 * @return
+	 */
+	T getByExample(T domain);
+
+	/**
+	 * 根据DTO构建Example
+	 * @param domain
+	 * @return
+	 */
+	ExampleExpand buildExample(T domain);
+
+	/**
+	 * 用于支持like, order by 的count查询
+	 *
+	 * @param domain
+	 * @return
+	 */
+	int countByExample(T domain);
 
 	/**
 	 * 用于支持@Like, @Operator和@OrderBy 的分页查询

@@ -106,6 +106,8 @@ public class ResultTypeInterceptor implements Interceptor {
 			return null;
 		} else if (parameterObject instanceof Class) {
 			return (Class)parameterObject;
+		} else if (parameterObject instanceof ExampleExpand) {
+			return objectToClass(((ExampleExpand)parameterObject).getResultType());
 		} else if (parameterObject instanceof Map) {
 			//解决不可变Map的情况
 			if(((Map)(parameterObject)).containsKey(resultType)){

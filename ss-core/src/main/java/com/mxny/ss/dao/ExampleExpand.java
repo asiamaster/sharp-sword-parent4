@@ -15,6 +15,8 @@ public class ExampleExpand<A> extends Example {
 
     //在Example中添加where后缀
     protected String whereSuffixSql;
+    //返回类的完全限定名
+    protected String resultType;
 
     public ExampleExpand(Class<A> entityClass) {
         super(entityClass);
@@ -50,6 +52,14 @@ public class ExampleExpand<A> extends Example {
 
     public void setWhereSuffixSql(String whereSuffixSql) {
         this.whereSuffixSql = whereSuffixSql;
+    }
+
+    public String getResultType() {
+        return resultType;
+    }
+
+    public void setResultType(String resultType) {
+        this.resultType = resultType;
     }
 
     public ExampleExpand(Class<A> entityClass, Example.Builder builder) {
