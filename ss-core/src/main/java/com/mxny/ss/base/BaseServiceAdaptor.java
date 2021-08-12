@@ -450,7 +450,17 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 		}
 		//设置动态表名
 		if(domain instanceof IDynamicTableName){
-			example.setTableName(((IDynamicTableName)domain).getDynamicTableName());
+			String dynamicTableName = ((IDynamicTableName) domain).getDynamicTableName();
+			if(StringUtils.isNotBlank(dynamicTableName)) {
+				example.setTableName(dynamicTableName);
+			}
+		}
+		//设置动态返回值类型
+		if(domain instanceof IDynamicResultType){
+			String resultType = ((IDynamicResultType) domain).getResultType();
+			if(StringUtils.isNotBlank(resultType)) {
+				example.setResultType(resultType);
+			}
 		}
 		return example;
 	}

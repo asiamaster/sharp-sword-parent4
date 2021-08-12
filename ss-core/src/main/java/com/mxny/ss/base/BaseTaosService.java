@@ -317,7 +317,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                 example.setTableName(dynamicTableName);
             }
         }
-        //设置动态表名
+        //设置动态返回值类型
         if(domain instanceof IDynamicResultType){
             String resultType = ((IDynamicResultType) domain).getResultType();
             if(StringUtils.isNotBlank(resultType)) {
