@@ -21,6 +21,7 @@ import com.mxny.ss.util.POJOUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.time.DateFormatUtils;
+import org.mybatis.spring.MyBatisSystemException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -159,7 +160,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param entityClass
      * @return
      */
-    public ExampleExpand getExample(T domain, Class<?> entityClass) {
+    public ExampleExpand createExample(T domain, Class<?> entityClass) {
         ExampleExpand exampleExpand = ExampleExpand.of(entityClass);
         if(!(domain instanceof ITaosTableDomain)){
             return exampleExpand;
@@ -254,7 +255,47 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @return
      */
     public List<T> listByExample(T domain){
-        return getDao().selectByExampleExpand(buildExample(domain));
+        try {
+            ExampleExpand exampleExpand = buildExample(domain);
+            //设置分页信息
+            Integer page = domain.getPage();
+            page = (page == null) ? Integer.valueOf(1) : page;
+            if(domain.getRows() != null) {
+                Integer rows = 0;
+                if(domain.getRows() >= 0 ){
+                    rows = domain.getRows();
+                }
+//            String countColumn = ITaosDomain.ID;
+                //TAOS数据库使用count(1)不会报错
+                String countColumn = "1";
+                Boolean isCount = true;
+                if(domain instanceof IMybatisForceParams){
+                    IMybatisForceParams iMybatisForceParams =((IMybatisForceParams) domain);
+                    //设置CountColumn
+                    if(StringUtils.isNotBlank(iMybatisForceParams.getCountColumn())){
+                        countColumn = iMybatisForceParams.getCountColumn();
+                    }
+                    //设置是否查总数
+                    if(iMybatisForceParams.getIsCount() != null){
+                        isCount = iMybatisForceParams.getIsCount();
+                    }
+                }
+                //为了线程安全,请勿改动下面两行代码的顺序
+                if(isCount) {
+                    PageHelper.startPage(page, rows, isCount).countColumn(countColumn);
+                }else{
+                    PageHelper.startPage(page, rows, false);
+                }
+            }
+            return getDao().selectByExampleExpand(exampleExpand);
+        }catch (MyBatisSystemException e){
+            //处理TDEngine在分页查询无数据返回时，会在ExecutorUtil.executeAutoCount返回empty List，导致异常
+            //Mysql是正常返回第一个元素为0的List
+            if(e.getCause() != null || e.getCause().getCause() instanceof  IndexOutOfBoundsException) {
+                return new ArrayList<>();
+            }
+            throw e;
+        }
     }
 
     /**
@@ -294,21 +335,12 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         if(null == domain) {
             domain = getDefaultBean (tClazz);
         }
-        ExampleExpand example = getExample(domain, tClazz);
+        ExampleExpand example = createExample(domain, tClazz);
         //接口只取getter方法
         if(tClazz.isInterface()) {
             buildExampleByGetterMethods(domain, example);
         }else {//类取属性
             buildExampleByFields(domain, example);
-        }
-        //设置分页信息
-        Integer page = domain.getPage();
-        page = (page == null) ? Integer.valueOf(1) : page;
-        if(domain.getRows() != null && domain.getRows() >= 0) {
-            //为了线程安全,请勿改动下面两行代码的顺序
-            PageHelper.startPage(page, domain.getRows()).setCountColumn(ITaosDomain.ID);
-        }else if(domain.getRows() != null && domain.getRows() < 0){
-            PageHelper.startPage(page, 0).setCountColumn(ITaosDomain.ID);
         }
         //设置动态表名
         if(domain instanceof IDynamicTableName){
@@ -431,8 +463,8 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         }
         Example.Criteria criteria = example.createCriteria();
         //解析空值字段
-        parseNullField(domain, criteria);
-        parseNotNullField(domain, criteria);
+        Set<String> nullFields = parseNullField(domain, criteria);
+        Set<String> notNullFields = parseNotNullField(domain, criteria);
         List<Field> fields = new ArrayList<>();
         getDeclaredField(domain.getClass(), fields);
         //用于在for中判断是否需要添加查询条件
@@ -444,7 +476,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         for(Field field : fields){
             String columnName = getColumnName(field);
             //跳过空值字段
-            if(isNullField(columnName, domain.getMetadata(IDTO.NULL_VALUE_FIELD)) || isNotNullField(columnName, domain.getMetadata(IDTO.NOT_NULL_VALUE_FIELD))){
+            if(nullFields.contains(columnName) || notNullFields.contains(columnName)){
                 continue;
             }
             Transient transient1 = field.getAnnotation(Transient.class);
@@ -568,8 +600,8 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         Class tClazz = DTOUtils.getDTOClass(domain);
         Example.Criteria criteria = example.createCriteria();
         //解析空值字段(where xxx is null)
-        parseNullField(domain, criteria);
-        parseNotNullField(domain, criteria);
+        Set<String> nullFields = parseNullField(domain, criteria);
+        Set<String> notNullFields = parseNotNullField(domain, criteria);
         List<Method> methods = new ArrayList<>();
         //设置子类和所有超类的方法
         getDeclaredMethod(tClazz, methods);
@@ -587,7 +619,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             //数据库列名
             String columnName = column == null ? POJOUtils.humpToLineFast(POJOUtils.getBeanField(method)) : column.name();
             //跳过空值字段
-            if(isNullField(columnName, domain.getMetadata(IDTO.NULL_VALUE_FIELD)) || isNotNullField(columnName, domain.getMetadata(IDTO.NOT_NULL_VALUE_FIELD))){
+            if(nullFields.contains(columnName) || notNullFields.contains(columnName)){
                 continue;
             }
             Transient transient1 = method.getAnnotation(Transient.class);
@@ -1105,77 +1137,83 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
     }
 
     /**
-     * 判断是否为空值字段
-     * @param columnName
-     * @param nullValueField
-     * @return
-     */
-    private boolean isNullField(String columnName, Object nullValueField){
-        if(nullValueField != null){
-            if(nullValueField instanceof String){
-                if(columnName.equals(nullValueField)){
-                    return true;
-                }
-            }else if(nullValueField instanceof List){
-                return ((List) nullValueField).contains(columnName);
-            }
-        }
-        return false;
-    }
-
-    /**
-     * 判断是否为空值字段
-     * @param columnName
-     * @param notNullValueField
-     * @return
-     */
-    private boolean isNotNullField(String columnName, Object notNullValueField){
-        if(notNullValueField != null){
-            if(notNullValueField instanceof String){
-                if(columnName.equals(notNullValueField)){
-                    return true;
-                }
-            }else if(notNullValueField instanceof List){
-                return ((List) notNullValueField).contains(columnName);
-            }
-        }
-        return false;
-    }
-
-    /**
      * 如果metadata中有空值字段名，则解析为field is null
      */
-    private void parseNullField(T domain, Example.Criteria criteria){
+    private Set<String> parseNullField(T domain, Example.Criteria criteria){
+        Set<String> nullFileds = new HashSet<>();
         //如果metadata中有空值字段名，则解析为field is null
         Object nullValueField = DTOUtils.getDTOClass(domain).isInterface() ? domain.mget(IDTO.NULL_VALUE_FIELD) : domain.getMetadata(IDTO.NULL_VALUE_FIELD);
         if(nullValueField != null){
             if(nullValueField instanceof String){
+                nullFileds.add((String) nullValueField);
                 criteria = criteria.andCondition(nullValueField + " is null ");
             }else if(nullValueField instanceof List){
                 List<String> nullValueFields = (List)nullValueField;
+                nullFileds.addAll(nullValueFields);
+                for(String field : nullValueFields){
+                    criteria = criteria.andCondition(field + " is null ");
+                }
+            }else if(nullValueField instanceof Set){
+                Set<String> nullValueFields = (Set)nullValueField;
+                nullFileds = nullValueFields;
                 for(String field : nullValueFields){
                     criteria = criteria.andCondition(field + " is null ");
                 }
             }
         }
+        if(domain instanceof IMybatisForceParams) {
+            IMybatisForceParams iMybatisForceParams = ((IMybatisForceParams) domain);
+            if(CollectionUtils.isNotEmpty(iMybatisForceParams.getNullValueFields())){
+                Set<String> nullValueFields = iMybatisForceParams.getNullValueFields();
+                if(CollectionUtils.isNotEmpty(nullValueFields)) {
+                    nullFileds = nullValueFields;
+                    for(String field : nullValueFields){
+                        criteria = criteria.andCondition(field + " is null ");
+                    }
+                }
+            }
+        }
+        return nullFileds;
     }
 
     /**
      * 如果metadata中有非空值字段名，则解析为field is not null
      */
-    private void parseNotNullField(T domain, Example.Criteria criteria){
+    private Set<String> parseNotNullField(T domain, Example.Criteria criteria){
+        Set<String> notNullFileds = new HashSet<>();
         //如果metadata中有空值字段名，则解析为field is null
         Object notNullValueField = DTOUtils.getDTOClass(domain).isInterface() ? domain.mget(IDTO.NOT_NULL_VALUE_FIELD) : domain.getMetadata(IDTO.NOT_NULL_VALUE_FIELD);
         if(notNullValueField != null){
             if(notNullValueField instanceof String){
+                notNullFileds.add((String)notNullValueField);
                 criteria = criteria.andCondition(notNullValueField + " is not null ");
             }else if(notNullValueField instanceof List){
-                List<String> nullValueFields = (List)notNullValueField;
-                for(String field : nullValueFields){
+                List<String> notNullValueFields = (List)notNullValueField;
+                notNullFileds.addAll(notNullFileds);
+                for(String field : notNullValueFields){
+                    criteria = criteria.andCondition(field + " is not null ");
+                }
+            }else if(notNullValueField instanceof Set){
+                Set<String> notNullValueFields = (Set)notNullValueField;
+                notNullFileds = notNullValueFields;
+                for(String field : notNullValueFields){
                     criteria = criteria.andCondition(field + " is not null ");
                 }
             }
         }
+        if(domain instanceof IMybatisForceParams) {
+            IMybatisForceParams iMybatisForceParams = ((IMybatisForceParams) domain);
+            if(CollectionUtils.isNotEmpty(iMybatisForceParams.getNotNullValueFields())){
+                Set<String> nullValueFields = iMybatisForceParams.getNotNullValueFields();
+                if(CollectionUtils.isNotEmpty(nullValueFields)) {
+                    notNullFileds = nullValueFields;
+                    for (String field : nullValueFields) {
+                        criteria = criteria.andCondition(field + " is not null ");
+                    }
+                }
+            }
+        }
+        return notNullFileds;
     }
 
     /**
