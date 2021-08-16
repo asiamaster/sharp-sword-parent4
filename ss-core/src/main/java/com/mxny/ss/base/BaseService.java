@@ -203,6 +203,13 @@ public interface BaseService<T,KEY extends Serializable> {
 	List<T> listByExample(T domain);
 
 	/**
+	 * 用于支持@Like, @Operator，@OrderBy和空值的查询
+	 * 返回动态类型
+	 * @param domain
+	 * @return
+	 */
+	List listObjectByExample(T domain);
+	/**
 	 * 用于支持like, order by 的单条查询
 	 * @param domain
 	 * @return

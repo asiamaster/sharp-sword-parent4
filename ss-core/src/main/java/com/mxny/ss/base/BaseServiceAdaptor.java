@@ -422,6 +422,11 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 		return getDao().selectByExampleExpand(exampleExpand);
 	}
 
+	@Override
+	public List listObjectByExample(T domain){
+		return (List) listByExample(domain);
+	}
+
 	/**
 	 * 用于支持like, order by 的单条查询
 	 * @param domain

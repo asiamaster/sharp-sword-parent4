@@ -86,7 +86,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      */
     @Transactional(rollbackFor = Exception.class)
     public void insertSelectiveByTags(T t) {
-        jdbcTemplate.execute(buildInsertSql(Lists.newArrayList(t), (Class)DTOUtils.getDTOClass(t)));
+        jdbcTemplate.execute(buildInsertSql(Lists.newArrayList(t)));
     }
 
     /**
@@ -103,24 +103,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         if(org.apache.commons.collections.CollectionUtils.isEmpty(list)){
             return;
         }
-        jdbcTemplate.execute(buildInsertSql(list, (Class)DTOUtils.getDTOClass(list.get(0))));
-    }
-
-    /**
-     * 批量插入，指定对象类型
-     * 该方法不再支持动态代理DTO
-     * 例:
-     * INSERT INTO d21001 USING meters TAGS ('Beijing.Chaoyang', 2) VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
-     *             d21002 USING meters (groupdId) TAGS (2) VALUES ('2021-07-13 14:06:34.255', 10.15, 217, 0.33)
-     *             d21003 USING meters (groupdId) TAGS (2) (ts, current, phase) VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
-     * @param list
-     */
-    @Transactional(rollbackFor = Exception.class)
-    public void batchInsert(List<T> list, Class<T> tClass) {
-        if(org.apache.commons.collections.CollectionUtils.isEmpty(list)){
-            return;
-        }
-        jdbcTemplate.execute(buildInsertSql(list, tClass));
+        jdbcTemplate.execute(buildInsertSql(list));
     }
 
     public T get(Long key) {
@@ -199,7 +182,8 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                         continue;
                     }
                     Boolean containsTag = iTaosTableDomain.getContainsTag();
-                    //默认查询所有字段(包含Tag)
+                    // 默认查询所有字段(包含Tag),当要屏蔽tag时，
+                    // 需要设置ITaosTableDomain.containsTag为false, 则会将有@TaosTag注解的字段排除出SelectColumns
                     if (containsTag != null && !containsTag) {
                         if (method.getAnnotation(TaosTag.class) != null) {
                             continue;
@@ -296,6 +280,16 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             }
             throw e;
         }
+    }
+
+    /**
+     * 用于支持like, order by 的查询，支持分页
+     * 支持动态返回类型
+     * @param domain
+     * @return
+     */
+    public List listObjectByExample(T domain){
+        return (List) listByExample(domain);
     }
 
     /**
@@ -485,7 +479,8 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             }
             if(taosTable) {
                 Boolean containsTag = iTaosTableDomain.getContainsTag();
-                //默认查询所有字段(包含Tag)，如果包含TaosTag注解，则不加入查询条件
+                // 默认查询所有字段(包含Tag),当要屏蔽tag时，
+                // 需要设置ITaosTableDomain.containsTag为false, 则会将有@TaosTag注解的字段排除出查询条件
                 if (containsTag != null && !containsTag) {
                     if(field.getAnnotation(TaosTag.class) != null){
                         continue;
@@ -628,7 +623,8 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             }
             if(taosTable) {
                 Boolean containsTag = iTaosTableDomain.getContainsTag();
-                //默认查询所有字段(包含Tag)，如果包含Tag为false,则当有TaosTag注解时，不加入查询条件
+                // 默认查询所有字段(包含Tag),当要屏蔽tag时，
+                // 需要设置ITaosTableDomain.containsTag为false, 则会将有@TaosTag注解的字段排除出查询条件
                 if (containsTag != null && !containsTag) {
                     if(method.getAnnotation(TaosTag.class) != null){
                         continue;
@@ -1221,13 +1217,14 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param datas
      * @return
      */
-    private String buildInsertSql(List<T> datas, Class<T> dtoClass) {
+    private String buildInsertSql(List<T> datas) {
         if(CollectionUtils.isEmpty(datas)){
             return null;
         }
         if(!(datas.get(0) instanceof IDynamicTableName)){
             throw new DataErrorException("未实现IDynamicTableName接口");
         }
+        Class<T> dtoClass = (Class)DTOUtils.getDTOClass(datas.get(0));
         List<ITaosTableDomain> tableDomains = (List)datas;
         //按动态表名排序
         Collections.sort(tableDomains, (a, b) -> {
@@ -1355,35 +1352,65 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      */
     private List<Map<String, Object>> beanTableMapping(List<T> datas, Class<T> tClass) throws Exception {
         List<Map<String, Object>> list = new ArrayList<>(datas.size());
-        Method[] methods = tClass.getMethods();
-        //先计算出需要get的方法
-        List<Method> getters = new ArrayList<>();
-        for (Method method : methods) {
-            if(!POJOUtils.isGetMethod(method)){
-                continue;
-            }
-            if(method.getAnnotation(TaosTag.class) != null){
-                continue;
-            }
-            if(method.getAnnotation(Transient.class) != null){
-                continue;
-            }
-            if(method.getName().equals("getMetadata") || method.getName().equals("getFields") || method.getName().equals("getDynamicTableName")){
-                continue;
-            }
-            getters.add(method);
-        }
-        for (T data : datas) {
-            Map<String, Object> beanMap = new HashMap<>();
-            for (Method getter : getters) {
-                Object value = getter.invoke(data);
-                if(value != null) {
-                    beanMap.put(getColumnName(getter), value);
+        if(tClass.isInterface()) {
+            Method[] methods = tClass.getMethods();
+            //先计算出需要get的方法
+            List<Method> getters = new ArrayList<>();
+            for (Method method : methods) {
+                if (!POJOUtils.isGetMethod(method)) {
+                    continue;
                 }
+                if (method.getAnnotation(TaosTag.class) != null) {
+                    continue;
+                }
+                if (method.getAnnotation(Transient.class) != null) {
+                    continue;
+                }
+                if ("getMetadata".equals(method.getName()) || "getFields".equals(method.getName()) || "getDynamicTableName".equals(method.getName()) || "getResultType".equals(method.getName())) {
+                    continue;
+                }
+                getters.add(method);
             }
-            list.add(beanMap);
+            for (T data : datas) {
+                Map<String, Object> beanMap = new HashMap<>();
+                for (Method getter : getters) {
+                    Object value = getter.invoke(data);
+                    if (value != null) {
+                        beanMap.put(getColumnName(getter), value);
+                    }
+                }
+                list.add(beanMap);
+            }
+        }else{
+            Field[] fields = tClass.getFields();
+            //先计算出需要的属性
+            List<Field> fieldList = new ArrayList<>();
+            for (Field field : fields) {
+                if (field.getAnnotation(TaosTag.class) != null) {
+                    continue;
+                }
+                if (field.getAnnotation(Transient.class) != null) {
+                    continue;
+                }
+                if(field.getDeclaringClass().isInterface()){
+                    continue;
+                }
+                if ("metadata".equals(field.getName()) || "fields".equals(field.getName()) || "dynamicTableName".equals(field.getName()) || "resultType".equals(field.getName())) {
+                    continue;
+                }
+                fieldList.add(field);
+            }
+            for (T data : datas) {
+                Map<String, Object> beanMap = new HashMap<>();
+                for (Field field : fieldList) {
+                    Object value = field.get(data);
+                    if (value != null) {
+                        beanMap.put(getColumnName(field), value);
+                    }
+                }
+                list.add(beanMap);
+            }
         }
-
         return list;
     }
 
