@@ -9,6 +9,7 @@ import tk.mybatis.mapper.mapperhelper.EntityHelper;
 
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -27,10 +28,18 @@ public abstract class OGNL {
      * @return
      */
     public static boolean hasWhereSuffixSql(Object parameter) {
-        if(parameter != null && parameter instanceof ExampleExpand) {
-            ExampleExpand example = (ExampleExpand)parameter;
-            if(StringUtils.isNotBlank(example.getWhereSuffixSql())) {
-                return true;
+        if(parameter != null) {
+            if(parameter instanceof ExampleExpand) {
+                ExampleExpand example = (ExampleExpand) parameter;
+                if (StringUtils.isNotBlank(example.getWhereSuffixSql())) {
+                    return true;
+                }
+            }else if(parameter instanceof Map){
+                //当PageHelper.startPage第三个参数为false时，parameter从ExampleExpand变为HashMap
+                Map map = (Map) parameter;
+                if(map.containsKey("whereSuffixSql")){
+                    return true;
+                }
             }
         }
         return false;

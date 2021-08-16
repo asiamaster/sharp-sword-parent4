@@ -31,6 +31,8 @@
 package com.mxny.ss.processor.processor;
 
 import com.google.auto.service.AutoService;
+import com.mxny.ss.dto.IBaseDomain;
+import com.mxny.ss.dto.ITaosDomain;
 import com.mxny.ss.processor.annotation.GenDTOMethod;
 import com.mxny.ss.processor.util.ClassUtils;
 import com.mxny.ss.util.POJOUtils;
@@ -39,6 +41,7 @@ import com.sun.tools.javac.code.Attribute;
 import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Type;
 import org.apache.commons.lang3.StringUtils;
+import tk.mybatis.mapper.annotation.KeySql;
 
 import javax.annotation.processing.Processor;
 import javax.annotation.processing.RoundEnvironment;
@@ -391,13 +394,20 @@ public class DtoProcessor extends BaseProcessor {
             columnAnnotationSpecBuilder.addMember("name", CodeBlock.builder().add("$S", fieldSimpleNameStringBuilder.append("`").append(POJOUtils.humpToLineFast(fieldSimpleName)).append("`").toString()).build());
             getMethodBuilder.addAnnotation(columnAnnotationSpecBuilder.build());
         }
-        if("id".equals(fieldSimpleName) && jpaAnnotation){
+        if(IBaseDomain.ID.equals(fieldSimpleName) && jpaAnnotation){
             //构建javax.persistence.Id注解
             getMethodBuilder.addAnnotation(Id.class);
             //构建javax.persistence.GeneratedValue注解
             AnnotationSpec.Builder generatedValueAnnotationSpecBuilder = AnnotationSpec.builder(GeneratedValue.class);
             generatedValueAnnotationSpecBuilder.addMember("strategy", CodeBlock.builder().add("$T.$L", GenerationType.class, "IDENTITY").build());
             getMethodBuilder.addAnnotation(generatedValueAnnotationSpecBuilder.build());
+        }else if(ITaosDomain.ID.equals(fieldSimpleName) && jpaAnnotation){
+            //构建javax.persistence.Id注解
+            getMethodBuilder.addAnnotation(Id.class);
+            //构建tk.mybatis.mapper.annotation.KeySql注解
+            AnnotationSpec.Builder keySqlAnnotationSpecBuilder = AnnotationSpec.builder(KeySql.class);
+            keySqlAnnotationSpecBuilder.addMember("sql", "\"select 1\"");
+            getMethodBuilder.addAnnotation(keySqlAnnotationSpecBuilder.build());
         }
         //初始化setter
         String setterName = "set" + fieldSimpleName.substring(0, 1).toUpperCase() + fieldSimpleName.substring(1);

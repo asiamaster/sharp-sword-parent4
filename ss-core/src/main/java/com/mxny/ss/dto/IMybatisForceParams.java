@@ -54,4 +54,39 @@ public interface IMybatisForceParams extends IDTO {
     @Transient
     Boolean getCheckInjection();
     void setCheckInjection(Boolean checkInjection);
+
+    /**
+     * 在分页时是否查询总数
+     * @return
+     */
+    @Transient
+    Boolean getIsCount();
+    void setIsCount(Boolean isCount);
+
+    /**
+     * 查询总数使用的列count(countColumn)
+     * 在Mysql时默认使用id，在TDEngine时默认使用ts
+     * @return
+     */
+    @Transient
+    String getCountColumn();
+    void setCountColumn(String countColumn);
+
+    /**
+     * 非空值字段
+     * 拼接 is not null
+     * @return
+     */
+    @Transient
+    Set<String> getNotNullValueFields();
+    void setNotNullValueFields(Set<String> notNullValueFields);
+
+    /**
+     * 空值字段
+     * 拼接 is null
+     * @return
+     */
+    @Transient
+    Set<String> getNullValueFields();
+    void setNullValueFields(Set<String> nullValueFields);
 }
