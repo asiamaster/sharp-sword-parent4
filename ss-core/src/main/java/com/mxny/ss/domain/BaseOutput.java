@@ -21,12 +21,7 @@ public class BaseOutput<T> {
      * 200时返回OK，code!=200时表示具体失败原因
      */
     private String message;
-    /**
-     * 业务状态说明 <br/>
-     * 200时返回OK，code!=200时表示具体失败原因
-     */
-    @Deprecated
-    private String result;
+
     /**
      * 返回业务数据 <br/>
      * 根据接口泛型指定
@@ -73,21 +68,6 @@ public class BaseOutput<T> {
 
     public BaseOutput setMessage(String message) {
         this.message = message;
-        return this;
-    }
-
-    /**
-     * 语义不明确，建议使用message属性
-     * @return
-     */
-    @Deprecated
-    public String getResult() {
-        return result == null ? getMessage() : result;
-    }
-    @Deprecated
-    public BaseOutput setResult(String result) {
-        this.result = result;
-        this.message = result;
         return this;
     }
 

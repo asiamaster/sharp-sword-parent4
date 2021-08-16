@@ -346,6 +346,10 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 			return exampleExpand;
 		}
 		IMybatisForceParams iMybatisForceParams =((IMybatisForceParams) domain);
+		//设置WhereSuffixSql
+		if(StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())){
+			exampleExpand.setWhereSuffixSql(iMybatisForceParams.getWhereSuffixSql());
+		}
 		//这里构建Example，并设置selectColumns
 		Set<String> columnsSet = iMybatisForceParams.getSelectColumns();
 		if(columnsSet == null|| columnsSet.isEmpty()){
@@ -362,9 +366,7 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 				Field selectColumnsField = Example.class.getDeclaredField("selectColumns");
 				selectColumnsField.setAccessible(true);
 				selectColumnsField.set(exampleExpand, columnsSet);
-			} catch (NoSuchFieldException e) {
-				e.printStackTrace();
-			} catch (IllegalAccessException e) {
+			} catch (Exception e) {
 				e.printStackTrace();
 			}
 			return exampleExpand;
@@ -372,13 +374,8 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 //			ExampleExpand.Builder builder = new Example.Builder(entityClass);
 //			builder.select(columnsSet.toArray(new String[]{}));
 //			ExampleExpand exampleExpand1 = ExampleExpand.of(entityClass, builder);
-			ExampleExpand exampleExpand1 = ExampleExpand.of(entityClass);
-			exampleExpand1.selectProperties(columnsSet.toArray(new String[]{}));
-			//设置WhereSuffixSql
-			if(StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())){
-				exampleExpand1.setWhereSuffixSql(iMybatisForceParams.getWhereSuffixSql());
-			}
-			return exampleExpand1;
+			exampleExpand.selectProperties(columnsSet.toArray(new String[]{}));
+			return exampleExpand;
 		}
 	}
 

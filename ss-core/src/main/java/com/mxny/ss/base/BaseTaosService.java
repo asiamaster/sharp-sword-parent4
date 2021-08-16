@@ -138,21 +138,32 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
 
     /**
      * 指定要查询的属性列 - 这里会自动映射到表字段
-     *
-     * @param domain
+     * 构建Example，并设置selectColumns和WhereSuffixSql，并判断是否防止注入
      * @param entityClass
      * @return
      */
     public ExampleExpand createExample(T domain, Class<?> entityClass) {
         ExampleExpand exampleExpand = ExampleExpand.of(entityClass);
-        if(!(domain instanceof ITaosTableDomain)){
+        if(!(domain instanceof IMybatisForceParams)){
             return exampleExpand;
         }
         Class<?> domainClass = DTOUtils.getDTOClass(domain);
-        ITaosTableDomain iTaosTableDomain =((ITaosTableDomain) domain);
-        //这里构建Example，并设置selectColumns
-        Set<String> columnsSet = iTaosTableDomain.getSelectColumns();
-        if(columnsSet == null){
+        IMybatisForceParams iMybatisForceParams =((IMybatisForceParams) domain);
+        //这里构
+        Set<String> columnsSet = null;
+        Boolean checkInjection = false;
+        //设置WhereSuffixSql
+        if(StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())){
+            exampleExpand.setWhereSuffixSql(iMybatisForceParams.getWhereSuffixSql());
+        }
+        if (CollectionUtils.isNotEmpty(iMybatisForceParams.getSelectColumns())) {
+            columnsSet = iMybatisForceParams.getSelectColumns();
+        }
+        if(iMybatisForceParams.getCheckInjection() != null) {
+            checkInjection = iMybatisForceParams.getCheckInjection();
+        }
+        //如果没有自定义的columnsSet，由需要根据当前实体是否包含@TaosTag注解和@Func注解的字段
+        if(CollectionUtils.isEmpty(columnsSet)){
             columnsSet = new HashSet<>();
             Method[] methods = domainClass.getMethods();
             //有Func注解的函数
@@ -181,10 +192,15 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                     if (!POJOUtils.isGetMethod(method)) {
                         continue;
                     }
-                    Boolean containsTag = iTaosTableDomain.getContainsTag();
+                    //默认是包括所有字段
+                    Boolean containsTag = true;
+                    if(domain instanceof ITaosTableDomain){
+                        ITaosTableDomain iTaosTableDomain =((ITaosTableDomain) domain);
+                        containsTag = iTaosTableDomain.getContainsTag();
+                    }
                     // 默认查询所有字段(包含Tag),当要屏蔽tag时，
                     // 需要设置ITaosTableDomain.containsTag为false, 则会将有@TaosTag注解的字段排除出SelectColumns
-                    if (containsTag != null && !containsTag) {
+                    if (!containsTag) {
                         if (method.getAnnotation(TaosTag.class) != null) {
                             continue;
                         }
@@ -199,17 +215,8 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                 }
             }
         }
-
-        if(domain instanceof IMybatisForceParams){
-            IMybatisForceParams iMybatisForceParams =((IMybatisForceParams) domain);
-            //设置WhereSuffixSql
-            if(StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())){
-                exampleExpand.setWhereSuffixSql(iMybatisForceParams.getWhereSuffixSql());
-            }
-        }
-
         //如果不检查，则用反射强制注入
-//        if (checkInjection == null || !checkInjection) {
+        if (!checkInjection) {
             try {
                 Field selectColumnsField = Example.class.getDeclaredField("selectColumns");
                 selectColumnsField.setAccessible(true);
@@ -218,19 +225,11 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                 e.printStackTrace();
             }
             return exampleExpand;
-//        } else {//如果要检查字段(防止注入)
-//            ExampleExpand exampleExpand1 = ExampleExpand.of(entityClass);
-//            //防止SQL注入
-//            exampleExpand1.selectProperties(columnsSet.toArray(new String[]{}));
-//            if (domain instanceof IMybatisForceParams) {
-//                IMybatisForceParams iMybatisForceParams = ((IMybatisForceParams) domain);
-//                //设置WhereSuffixSql
-//                if (StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())) {
-//                    exampleExpand1.setWhereSuffixSql(iMybatisForceParams.getWhereSuffixSql());
-//                }
-//            }
-//        }
-//        return exampleExpand1;
+        } else {//如果要检查字段(防止注入)
+            //防止SQL注入
+            exampleExpand.selectProperties(columnsSet.toArray(new String[]{}));
+            return exampleExpand;
+        }
     }
 
     /**
@@ -460,13 +459,8 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         Set<String> nullFields = parseNullField(domain, criteria);
         Set<String> notNullFields = parseNotNullField(domain, criteria);
         List<Field> fields = new ArrayList<>();
+        //获取子类和所有超类的属性
         getDeclaredField(domain.getClass(), fields);
-        //用于在for中判断是否需要添加查询条件
-        ITaosTableDomain iTaosTableDomain = ((ITaosTableDomain) domain);
-        boolean taosTable = false;
-        if (domain instanceof ITaosTableDomain) {
-            taosTable = true;
-        }
         for(Field field : fields){
             String columnName = getColumnName(field);
             //跳过空值字段
@@ -477,7 +471,9 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             if(transient1 != null) {
                 continue;
             }
-            if(taosTable) {
+            if(domain instanceof ITaosTableDomain) {
+                //用于在for中判断是否需要添加查询条件
+                ITaosTableDomain iTaosTableDomain = ((ITaosTableDomain) domain);
                 Boolean containsTag = iTaosTableDomain.getContainsTag();
                 // 默认查询所有字段(包含Tag),当要屏蔽tag时，
                 // 需要设置ITaosTableDomain.containsTag为false, 则会将有@TaosTag注解的字段排除出查询条件
@@ -600,12 +596,6 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         List<Method> methods = new ArrayList<>();
         //设置子类和所有超类的方法
         getDeclaredMethod(tClazz, methods);
-        //用于在for中判断是否需要添加查询条件
-        ITaosTableDomain iTaosTableDomain = ((ITaosTableDomain) domain);
-        boolean taosTable = false;
-        if (domain instanceof ITaosTableDomain) {
-            taosTable = true;
-        }
         for(Method method : methods){
             if(excludeMethod(method)) {
                 continue;
@@ -621,8 +611,9 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             if(transient1 != null) {
                 continue;
             }
-            if(taosTable) {
-                Boolean containsTag = iTaosTableDomain.getContainsTag();
+            if(domain instanceof ITaosTableDomain) {
+                //用于在for中判断是否需要添加查询条件
+                Boolean containsTag = ((ITaosTableDomain) domain).getContainsTag();
                 // 默认查询所有字段(包含Tag),当要屏蔽tag时，
                 // 需要设置ITaosTableDomain.containsTag为false, 则会将有@TaosTag注解的字段排除出查询条件
                 if (containsTag != null && !containsTag) {
