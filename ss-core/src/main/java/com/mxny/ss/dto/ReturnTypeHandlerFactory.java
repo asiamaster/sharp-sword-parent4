@@ -2,6 +2,7 @@ package com.mxny.ss.dto;
 
 import com.alibaba.fastjson.JSONObject;
 import com.google.common.collect.Lists;
+import com.google.common.collect.Sets;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.time.DateUtils;
 
@@ -38,6 +39,7 @@ public class ReturnTypeHandlerFactory {
         cache.put(LocalDateTime.class, new LocalDateTimeStrategy());
         cache.put(LocalDate.class, new LocalDateStrategy());
         cache.put(List.class, new ListStrategy());
+        cache.put(Set.class, new SetStrategy());
         cache.put(String.class, new StringStrategy());
         cache.put(Map.class, new MapStrategy());
         cache.put(IDTO.class, new IDTOStrategy());
@@ -123,9 +125,20 @@ public class ReturnTypeHandlerFactory {
 
         @Override
         public Object convert(Object value) {
-            return Lists.newArrayList(new Object[]{value});
+            return value instanceof String ? Lists.newArrayList(value) : value.getClass().isArray() ? Lists.newArrayList(new Object[]{value}) :Lists.newArrayList((List)value);
         }
     }
+
+    /**
+     * Set转换策略
+     */
+    private static class SetStrategy implements Strategy{
+        @Override
+        public Object convert(Object value) {
+            return value instanceof String ? Sets.newHashSet(value) : value.getClass().isArray() ? Sets.newHashSet(new Object[]{value}) :Sets.newHashSet((List)value);
+        }
+    }
+
 
     /**
      * 长整型转换策略
