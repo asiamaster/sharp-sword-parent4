@@ -1277,7 +1277,9 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         sqlBuilder.append(" (");
         for (Map.Entry<String, Object> entry : item.entrySet()) {
             Object value = entry.getValue();
-            if(value instanceof Number) {
+            if(value == null){
+                sqlBuilder.append("null");
+            }else if(value instanceof Number) {
                 sqlBuilder.append(value);
             }else{
                 sqlBuilder.append("'").append(value).append("'");
@@ -1374,10 +1376,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             for (T data : datas) {
                 Map<String, Object> beanMap = new HashMap<>();
                 for (Method getter : getters) {
-                    Object value = getter.invoke(data);
-                    if (value != null) {
-                        beanMap.put(getColumnName(getter), value);
-                    }
+                    beanMap.put(getColumnName(getter), getter.invoke(data));
                 }
                 list.add(beanMap);
             }
@@ -1403,10 +1402,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             for (T data : datas) {
                 Map<String, Object> beanMap = new HashMap<>();
                 for (Field field : fieldList) {
-                    Object value = field.get(data);
-                    if (value != null) {
-                        beanMap.put(getColumnName(field), value);
-                    }
+                    beanMap.put(getColumnName(field), field.get(data));
                 }
                 list.add(beanMap);
             }
