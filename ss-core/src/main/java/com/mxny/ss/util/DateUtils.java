@@ -1,6 +1,7 @@
 package com.mxny.ss.util;
 
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.util.Assert;
 
 import java.text.SimpleDateFormat;
 import java.time.*;
@@ -469,7 +470,7 @@ public class DateUtils {
      * @param localDateTime
      * @return
      */
-    public static Date localDateTimeToUdate(LocalDateTime localDateTime) {
+    public static Date localDateTimeToUpdate(LocalDateTime localDateTime) {
         ZoneId zone = ZoneId.systemDefault();
         Instant instant = localDateTime.atZone(zone).toInstant();
         return Date.from(instant);
@@ -481,7 +482,7 @@ public class DateUtils {
      * @param localDate
      * @return
      */
-    public static Date localDateToUdate(LocalDate localDate) {
+    public static Date localDateToUpdate(LocalDate localDate) {
         ZoneId zone = ZoneId.systemDefault();
         Instant instant = localDate.atStartOfDay().atZone(zone).toInstant();
         return Date.from(instant);
@@ -489,12 +490,60 @@ public class DateUtils {
 
     /**
      * java.time.LocalTime --> java.util.Date
+     * @param localTime
+     * @return
      */
-    public static Date localTimeToUdate(LocalTime localTime) {
+    public static Date localTimeToUpdate(LocalTime localTime) {
         LocalDate localDate = LocalDate.now();
         LocalDateTime localDateTime = LocalDateTime.of(localDate, localTime);
         ZoneId zone = ZoneId.systemDefault();
         Instant instant = localDateTime.atZone(zone).toInstant();
         return Date.from(instant);
     }
+
+    /**
+     * 将Long类型的时间戳转换成String 类型的时间格式，时间格式为：yyyy-MM-dd HH:mm:ss
+     * @param time
+     * @return
+     */
+    public static String timeToString(Long time){
+        return timeToString(time, "yyyy-MM-dd HH:mm:ss");
+    }
+
+    /**
+     * 将Long类型的时间戳转换成String 类型的时间格式，时间格式为：yyyy-MM-dd HH:mm:ss
+     * @param time
+     * @param format
+     * @return
+     */
+    public static String timeToString(Long time, String format){
+        Assert.notNull(time, "time is null");
+        DateTimeFormatter formatString = DateTimeFormatter.ofPattern(format);
+        return formatString.format(LocalDateTime.ofInstant(Instant.ofEpochMilli(time), ZoneId.systemDefault()));
+    }
+
+    /**
+     * 将字符串转日期成Long类型的时间戳
+     * @param time
+     * @param format
+     * @return
+     */
+    public static Long timeToLong(String time, String format) {
+        Assert.notNull(time, "time is null");
+        DateTimeFormatter ftf = DateTimeFormatter.ofPattern(format);
+        LocalDateTime parse = LocalDateTime.parse(time, ftf);
+        return LocalDateTime.from(parse).atZone(ZoneId.systemDefault()).toInstant().toEpochMilli();
+    }
+
+    /**
+     * 将字符串转日期成Long类型的时间戳，格式为：yyyy-MM-dd HH:mm:ss
+     * @param time
+     * @return
+     */
+    public static Long timeToLong(String time) {
+        return timeToLong(time, "yyyy-MM-dd HH:mm:ss");
+    }
+
+
+
 }
