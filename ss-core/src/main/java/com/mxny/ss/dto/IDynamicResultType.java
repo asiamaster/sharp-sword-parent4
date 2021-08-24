@@ -1,6 +1,7 @@
 package com.mxny.ss.dto;
 
-import java.beans.Transient;
+
+import javax.persistence.Transient;
 
 /**
  * 动态返回DTO
