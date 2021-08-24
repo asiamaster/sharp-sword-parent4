@@ -1,5 +1,6 @@
 package com.mxny.ss.dto;
 
+import com.google.common.collect.Lists;
 import com.mxny.ss.exception.ParamErrorException;
 import com.mxny.ss.util.POJOUtils;
 import javassist.*;
@@ -10,6 +11,7 @@ import org.springframework.util.ClassUtils;
 
 import java.lang.reflect.Method;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -19,9 +21,12 @@ import java.util.Set;
 public class DTOFactory implements IDTOFactory {
 
     private static DTOFactory instance = new DTOFactory();
-    /**
-     * 静态内部类实现单例模式（线程安全，调用效率高，可以延时加载）
-     */
+    //基类方法，不需要生成这些方法的字节码
+    private static final List<Class> baseClasses ;
+
+//    /**
+//     * 静态内部类实现单例模式（线程安全，调用效率高，可以延时加载）
+//     */
 //    private static class DTOFactoryInstance {
 //        private static final DTOFactory instance = new DTOFactory();
 //    }
@@ -36,6 +41,7 @@ public class DTOFactory implements IDTOFactory {
     static ClassPool classPool = ClassPool.getDefault();
 
     static {
+        baseClasses = Lists.newArrayList(IBaseDomain.class, IDTO.class, IStringDomain.class, ITaosDomain.class, IDomain.class);
         classPool.insertClassPath(new ClassClassPath(DTOFactory.class));
         classPool.importPackage("java.util.Map");
         classPool.importPackage("java.util.List");
@@ -145,46 +151,50 @@ public class DTOFactory implements IDTOFactory {
     @SuppressWarnings(value = {"unchecked", "deprecation"})
     private <T extends IDTO> CtClass createDynaCtClass(Class<T> clazz, CtClass ctClass) throws Exception {
         //IBaseDomain、IStringDomain或IDTO已经加载， IDomain不支持
-        if (clazz.equals(IBaseDomain.class) || clazz.equals(IDTO.class) || clazz.equals(IStringDomain.class) || clazz.equals(IDomain.class)) {
+        if (baseClasses.contains(clazz)) {
             return ctClass;
         }
         //非IDTO子类不加载
         if (!IDTO.class.isAssignableFrom(clazz)) {
             return ctClass;
         }
-        //获取当前类的所有方法
-        Method[] declaredMethods = clazz.getDeclaredMethods();
+        //获取类的所有public方法
+        Method[] allPublicMethods = clazz.getMethods();
         //先添加Field
-        for (Method method : declaredMethods) {
-            String fieldName = POJOUtils.getBeanField(method);
-            if (POJOUtils.isGetMethod(method)) {
-                try {
-                    //找不到属性抛异常,继续添加属性
-                    ctClass.getDeclaredField(fieldName);
-                    //找到属性就continue
-                    continue;
-                } catch (NotFoundException e) {
-                }
-                //构建属性
-                StringBuilder fieldStringBuilder = new StringBuilder();
-                //默认get方法的返回值赋给属性
-                if(method.isDefault()){
-                    fieldStringBuilder.append("private ").append(method.getReturnType().getTypeName()).append(" ")
-                            .append(fieldName).append(" = ").append("(")
-                            .append(method.getReturnType().getTypeName())
-                            .append(")com.mxny.ss.util.ReflectionUtils.invokeDefaultMethod(this, this.getClass().getInterfaces()[0].getMethod(\"")
-                            .append(method.getName()).append("\", null), null);");
-                }else {
-                    fieldStringBuilder.append("private ").append(method.getReturnType().getTypeName()).append(" ").append(fieldName).append(";").toString();
-                }
-                CtField ctField = CtField.make(fieldStringBuilder.toString(), ctClass);
-                ctClass.addField(ctField);
-
+        for (Method method : allPublicMethods) {
+            Class<?> declaringClass = method.getDeclaringClass();
+            //不处理基类接口的方法
+            if(baseClasses.contains(declaringClass)){
+                continue;
             }
+            if (!POJOUtils.isGetMethod(method)) {
+                continue;
+            }
+            String fieldName = POJOUtils.getBeanField(method);
+            try {
+                //找到已有属性就continue, 找不到属性抛异常,继续添加属性
+                ctClass.getDeclaredField(fieldName);
+                continue;
+            } catch (NotFoundException e) {
+            }
+            //构建属性
+            StringBuilder fieldStringBuilder = new StringBuilder();
+            //默认get方法的返回值赋给属性,只方式只支持JDK8
+            if(method.isDefault()){
+                fieldStringBuilder.append("private ").append(method.getReturnType().getTypeName()).append(" ")
+                        .append(fieldName).append(" = ").append("(")
+                        .append(method.getReturnType().getTypeName())
+                        .append(")com.mxny.ss.util.ReflectionUtils.invokeDefaultMethod(this, this.getClass().getInterfaces()[0].getMethod(\"")
+                        .append(method.getName()).append("\", null), null);");
+            }else {
+                fieldStringBuilder.append("private ").append(method.getReturnType().getTypeName()).append(" ").append(fieldName).append(";").toString();
+            }
+            CtField ctField = CtField.make(fieldStringBuilder.toString(), ctClass);
+            ctClass.addField(ctField);
         }
-
-        for (Method method : declaredMethods) {
-            //方法不能重复，不然编译报错
+        // 再构建getter和setter方法
+        for (Method method : allPublicMethods) {
+            //方法不能重复，不然编译报错，这里无须打印日志，如aset, mget,getRows,getFields等方法都会在这里跳过
             if (ctClass.getDeclaredMethods(method.getName()).length > 0) {
                 continue;
             }
@@ -217,7 +227,6 @@ public class DTOFactory implements IDTOFactory {
                     CtMethod method1 = CtMethod.make(new StringBuilder().append("public ").append(method.getReturnType().getTypeName()).append(" ").append(method.getName()).append("(){return this.").append(fieldName).append(" == null ? (").append(method.getReturnType().getTypeName()).append(")$delegate.get(\"").append(fieldName).append("\") : this.").append(fieldName).append(";}").toString(), ctClass);
                     ctClass.addMethod(method1);
                 }
-
             } else if (POJOUtils.isSetMethod(method)) {
                 StringBuilder methodStr = new StringBuilder();
                 if (method.getReturnType().equals(Void.TYPE)) {
@@ -243,12 +252,12 @@ public class DTOFactory implements IDTOFactory {
                 ctClass.addMethod(method1);
             }
         }
-        Class<?>[] interfaces = clazz.getInterfaces();
-        if (interfaces != null) {
-            for (int i = 0; i < interfaces.length; i++) {
-                createDynaCtClass((Class) interfaces[i], ctClass);
-            }
-        }
+//        Class<?>[] interfaces = clazz.getInterfaces();
+//        if (interfaces != null) {
+//            for (int i = 0; i < interfaces.length; i++) {
+//                createDynaCtClass((Class) interfaces[i], ctClass);
+//            }
+//        }
         return ctClass;
     }
 
