@@ -2,6 +2,7 @@ package com.mxny.ss.dto;
 
 import com.alibaba.fastjson.JSONObject;
 
+import javax.persistence.Transient;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.ObjectInputStream;
@@ -20,13 +21,16 @@ public class DTO extends HashMap<String, Object> {
 	private static final long serialVersionUID = -514229978937800587L;
 	// 附属信息
 	// 缺省情况下均没有,只有在有属性要求的情况下才创建
+	@Transient
 	private Map<String, Object> metadata = new HashMap<>(4);
 
 	// 是否监听修改
+	@Transient
 	private boolean listenModify;
 
 	// 是否已经被修改
 	// 只要调用了beginMonitorModify后，调过put方法都认为是进行修改
+	@Transient
 	private boolean modified;
 
 	/**

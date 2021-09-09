@@ -282,7 +282,7 @@ public class DTOFactory implements IDTOFactory {
         CtMethod agetMethod = CtMethod.make("public Object aget(String property){return $delegate.get(property);}", implCtClass);
         CtMethod agetAllMethod = CtMethod.make("public com.mxny.ss.dto.DTO aget(){return $delegate;}", implCtClass);
 
-        CtMethod asetMethod = CtMethod.make(new StringBuilder().append("public void aset(String property, Object value){").append("Field field = (Field)getFields().get(property);").append("if(field != null){try{field.set(this, value);}catch(Exception e){field.set(this, null);}}").append("this.$delegate.put(property, value);}").toString(), implCtClass);
+        CtMethod asetMethod = CtMethod.make(new StringBuilder().append("public void aset(String property, Object value){").append("Field field = (Field)getFields().get(property);").append("if(field != null){try{field.set(this, value);}catch(Exception e){e.printStackTrace();}}").append("this.$delegate.put(property, value);}").toString(), implCtClass);
         CtMethod asetAllMethod = CtMethod.make("public void aset(com.mxny.ss.dto.DTO dto){this.$delegate = dto;}", implCtClass);
         implCtClass.addMethod(agetMethod);
         implCtClass.addMethod(agetAllMethod);
