@@ -134,6 +134,7 @@ public class DTO extends HashMap<String, Object> {
 		return null;
 	}
 
+	@Transient
 	public Map<String, Object> getMetadata(){
 		return metadata;
 	}
