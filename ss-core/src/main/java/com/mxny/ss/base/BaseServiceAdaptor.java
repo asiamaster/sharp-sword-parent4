@@ -296,6 +296,15 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 	}
 
 	/**
+	 * 查询所有
+	 * @return
+	 */
+	@Override
+	public List<T> listAll() {
+		return getDao().selectAll();
+	}
+
+	/**
 	 * 根据实体分页查询
 	 * @param domain
 	 * @return

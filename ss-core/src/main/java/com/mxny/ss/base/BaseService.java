@@ -173,7 +173,13 @@ public interface BaseService<T,KEY extends Serializable> {
 	 * @return 对象列表
 	 */
 	List<T> list(T condtion);
-	
+
+	/**
+	 * 查询所有
+	 * @return
+	 */
+	List<T> listAll();
+
 	/**
 	 * 分页查询
 	 * @param t 分页查询对象

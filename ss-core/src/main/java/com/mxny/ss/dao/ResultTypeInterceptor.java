@@ -51,7 +51,12 @@ public class ResultTypeInterceptor implements Interceptor {
 			return invocation.proceed();
 		}
 		//复制ms，重设类型
-		args[0] = newMappedStatement(ms, resultType);
+		// 分页时时默认返回Long
+		if (ms.getId().toString().endsWith("_COUNT")) {
+			args[0] = newMappedStatement(ms, Long.class);
+		}else {
+			args[0] = newMappedStatement(ms, resultType);
+		}
 		return invocation.proceed();
 	}
 

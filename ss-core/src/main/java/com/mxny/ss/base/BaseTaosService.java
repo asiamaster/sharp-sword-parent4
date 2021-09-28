@@ -115,25 +115,30 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param condtion 查询条件
      * @return
      */
-    
     public List<T> list(T condtion) {
         return getDao().select(condtion);
     }
 
+    /**
+     * 查询所有
+     * @return
+     */
+    public List<T> listAll() {
+        return getDao().selectAll();
+    }
+
     //设置默认bean
-    private T getDefaultBean(Class tClazz){
-        T domain = null;
+    protected T newInstance(Class tClazz){
         if(tClazz.isInterface()){
-            domain = DTOUtils.newInstance((Class<T>)tClazz);
+            return DTOUtils.newInstance((Class<T>)tClazz);
         }else{
             try {
-                domain = (T)tClazz.newInstance();
+                return (T)tClazz.newInstance();
             } catch (Exception e) {
                 e.printStackTrace();
                 throw new RuntimeException(e.getMessage());
             }
         }
-        return domain;
     }
 
     /**
@@ -142,14 +147,14 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param entityClass
      * @return
      */
-    public ExampleExpand createExample(T domain, Class<?> entityClass) {
+    protected ExampleExpand createExample(T domain, Class<?> entityClass) {
         ExampleExpand exampleExpand = ExampleExpand.of(entityClass);
         if(!(domain instanceof IMybatisForceParams)){
             return exampleExpand;
         }
         Class<?> domainClass = DTOUtils.getDTOClass(domain);
         IMybatisForceParams iMybatisForceParams =((IMybatisForceParams) domain);
-        //这里构
+        //指定查询列
         Set<String> columnsSet = null;
         Boolean checkInjection = false;
         //设置WhereSuffixSql
@@ -196,7 +201,9 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                     Boolean containsTag = true;
                     if(domain instanceof ITaosTableDomain){
                         ITaosTableDomain iTaosTableDomain =((ITaosTableDomain) domain);
-                        containsTag = iTaosTableDomain.getContainsTag();
+                        if (iTaosTableDomain.getContainsTag() != null) {
+                            containsTag = iTaosTableDomain.getContainsTag();
+                        }
                     }
                     // 默认查询所有字段(包含Tag),当要屏蔽tag时，
                     // 需要设置ITaosTableDomain.containsTag为false, 则会将有@TaosTag注解的字段排除出SelectColumns
@@ -274,7 +281,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         }catch (MyBatisSystemException e){
             //处理TDEngine在分页查询无数据返回时，会在ExecutorUtil.executeAutoCount返回empty List，导致异常
             //Mysql是正常返回第一个元素为0的List
-            if(e.getCause() != null || e.getCause().getCause() instanceof  IndexOutOfBoundsException) {
+            if(e.getCause() != null && e.getCause().getCause() instanceof  IndexOutOfBoundsException) {
                 return new ArrayList<>();
             }
             throw e;
@@ -326,7 +333,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
     public ExampleExpand buildExample(T domain){
         Class tClazz = getSuperClassGenricType(getClass(), 0);
         if(null == domain) {
-            domain = getDefaultBean (tClazz);
+            domain = newInstance(tClazz);
         }
         ExampleExpand example = createExample(domain, tClazz);
         //接口只取getter方法
@@ -417,12 +424,13 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param domain
      * @param example
      */
-    private void setOrderBy(T domain, Example example){
+    protected void setOrderBy(T domain, Example example){
         //设置排序信息(domain.getSort()是排序字段名，多个以逗号分隔)
         if(StringUtils.isNotBlank(domain.getSort())) {
             StringBuilder orderByClauseBuilder = new StringBuilder();
             String[] sortFields = domain.getSort().split(",");
-            String[] orderByTypes = domain.getOrder().split(",");
+            //排序默认为asc
+            String[] orderByTypes = domain.getOrder() == null ? new String[]{"asc"} :domain.getOrder().split(",");
             //如果orderByTypes(asc或desc)只定义了一个，则所有都按第一个来处理
             if(sortFields.length > 1 && orderByTypes.length == 1){
                 String orderByType = orderByTypes[0];
@@ -510,7 +518,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                 if (like != null) {
                     andLike(criteria, columnName, like.value(), value);
                 } else if (operator != null) {
-                    if (!andOerator(criteria, columnName, fieldType, operator.value(), value)) {
+                    if (!andOperator(criteria, columnName, fieldType, operator.value(), value)) {
                         continue;
                     }
                 } else {
@@ -520,7 +528,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                 if (like != null) {
                     orLike(criteria, columnName, like.value(), value);
                 } else if (operator != null) {
-                    if (!orOerator(criteria, columnName, fieldType, operator.value(), value)) {
+                    if (!orOperator(criteria, columnName, fieldType, operator.value(), value)) {
                         continue;
                     }
                 } else {
@@ -542,15 +550,15 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         setOrderBy(domain, example);
     }
 
-    private static final String sqlReg = "(?:')|(?:--)|(/\\*(?:.|[\\n\\r])*?\\*/)|"+ "(\\b(select|update|and|or|delete|insert|trancate|char|into|substr|ascii|declare|exec|count|master|into|drop|execute)\\b)";
-    private static Pattern sqlPattern = Pattern.compile(sqlReg, Pattern.CASE_INSENSITIVE);
+    protected static final String sqlReg = "(?:')|(?:--)|(/\\*(?:.|[\\n\\r])*?\\*/)|"+ "(\\b(select|update|and|or|delete|insert|trancate|char|into|substr|ascii|declare|exec|count|master|into|drop|execute)\\b)";
+    protected static Pattern sqlPattern = Pattern.compile(sqlReg, Pattern.CASE_INSENSITIVE);
     /**
      * 检测SQL注入
      *
      * @param value
      * @return
      */
-    private boolean checkXss(String value) {
+    protected boolean checkXss(String value) {
         if (value == null || "".equals(value)) {
             return true;
         }
@@ -567,7 +575,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param method
      * @return
      */
-    private boolean excludeMethod(Method method){
+    protected boolean excludeMethod(Method method){
         //只处理getter方法
         if(!POJOUtils.isGetMethod(method)){
             return true;
@@ -640,7 +648,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                 if (like != null) {
                     andLike(criteria, columnName, like.value(), value);
                 } else if (operator != null) {
-                    if (!andOerator(criteria, columnName, fieldType, operator.value(), value)) {
+                    if (!andOperator(criteria, columnName, fieldType, operator.value(), value)) {
                         continue;
                     }
                 } else {
@@ -650,7 +658,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                 if (like != null) {
                     orLike(criteria, columnName, like.value(), value);
                 } else if (operator != null) {
-                    if (!orOerator(criteria, columnName, fieldType, operator.value(), value)) {
+                    if (!orOperator(criteria, columnName, fieldType, operator.value(), value)) {
                         continue;
                     }
                 }else {
@@ -679,7 +687,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param likeValue
      * @param value
      */
-    private void orLike(Example.Criteria criteria, String columnName, String likeValue, Object value){
+    protected void orLike(Example.Criteria criteria, String columnName, String likeValue, Object value){
         switch(likeValue){
             case Like.LEFT:
                 criteria = criteria.orCondition(columnName + " like '%" + value + "' ");
@@ -708,7 +716,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param value
      * @return 当操作符为IN并且为空集合，返回false，需要跳过
      */
-    private boolean orOerator(Example.Criteria criteria, String columnName, Class<?> fieldType, String operatorValue, Object value){
+    protected boolean orOperator(Example.Criteria criteria, String columnName, Class<?> fieldType, String operatorValue, Object value){
         if(operatorValue.equals(Operator.IN) || operatorValue.equals(Operator.NOT_IN)){
             if(value instanceof Collection && CollectionUtils.isEmpty((Collection)value)){
                 return false;
@@ -746,7 +754,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param columnName
      * @param value
      */
-    private void orEqual(Example.Criteria criteria, String columnName, Object value){
+    protected void orEqual(Example.Criteria criteria, String columnName, Object value){
         if(value instanceof Boolean || Number.class.isAssignableFrom(value.getClass())){
             criteria = criteria.orCondition(columnName + " = "+ value+" ");
         }else{
@@ -760,7 +768,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param columnName
      * @param value
      */
-    private void andEqual(Example.Criteria criteria, String columnName, Object value){
+    protected void andEqual(Example.Criteria criteria, String columnName, Object value){
         if(value instanceof Boolean || Number.class.isAssignableFrom(value.getClass())){
             criteria = criteria.andCondition(columnName + " = "+ value+" ");
         }else{
@@ -772,11 +780,11 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * 拼接and like
      * @param criteria
      * @param columnName
-     * @param likeValue
+     * @param likeType
      * @param value
      */
-    private void andLike(Example.Criteria criteria, String columnName, String likeValue, Object value){
-        switch(likeValue){
+    protected void andLike(Example.Criteria criteria, String columnName, String likeType, Object value){
+        switch(likeType){
             case Like.LEFT:
                 criteria = criteria.andCondition(columnName + " like '%" + value + "' ");
                 break;
@@ -804,7 +812,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param value
      * @return 当操作符和类型不匹配(如当操作符为IN并且为空集合)，返回false，需要跳过
      */
-    private boolean andOerator(Example.Criteria criteria, String columnName, Class<?> fieldType, String operatorValue, Object value){
+    protected boolean andOperator(Example.Criteria criteria, String columnName, Class<?> fieldType, String operatorValue, Object value){
         if(operatorValue.equals(Operator.IN) || operatorValue.equals(Operator.NOT_IN)){
             if(value instanceof Collection && CollectionUtils.isEmpty((Collection)value)){
                 return false;
@@ -877,7 +885,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param list
      * @return
      */
-    private void convertDatetimeList(List list){
+    protected void convertDatetimeList(List list){
         String DATE_TIME = "yyyy-MM-dd HH:mm:ss";
         if(list.get(0) instanceof Date){
             list.set(0, DateUtils.format((Date) list.get(0)));
@@ -896,7 +904,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param objs
      * @return
      */
-    private Object[] convertDatetimeArray(Object[] objs){
+    protected Object[] convertDatetimeArray(Object[] objs){
         String DATE_TIME = "yyyy-MM-dd HH:mm:ss";
         if(objs[0] instanceof Date){
             objs[0] = DateUtils.format((Date) objs[0]);
@@ -916,7 +924,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param arrays
      * @return
      */
-    private StringBuilder buildBetweenStringBuilderByArray(Object[] arrays){
+    protected StringBuilder buildBetweenStringBuilderByArray(Object[] arrays){
         StringBuilder sb = new StringBuilder(" ");
         if(arrays[0] instanceof String){
             sb.append("'").append(arrays[0]).append("' and '").append(arrays[1]).append("'");
@@ -929,7 +937,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
     /**
      * 设置@OrderBy注解的排序
      */
-    private void buildFieldsOrderByClause(Field[] fields, Example example){
+    protected void buildFieldsOrderByClause(Field[] fields, Example example){
         StringBuilder orderByClauseBuilder = new StringBuilder();
         for(Field field : fields) {
             Transient transient1 = field.getAnnotation(Transient.class);
@@ -952,7 +960,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
     /**
      * 设置@OrderBy注解的排序
      */
-    private void buildMethodsOrderByClause(List<Method> methods, Example example){
+    protected void buildMethodsOrderByClause(List<Method> methods, Example example){
         StringBuilder orderByClauseBuilder = new StringBuilder();
         for(Method method : methods){
             Transient transient1 = method.getAnnotation(Transient.class);
@@ -1043,7 +1051,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @return the index generic declaration, or Object.class if cannot be
      *         determined
      */
-    private Class<Object> getSuperClassGenricType(final Class clazz, final int index) {
+    protected Class<Object> getSuperClassGenricType(final Class clazz, final int index) {
         //返回表示此 Class 所表示的实体（类、接口、基本类型或 void）的直接超类的 Type。
         Type genType = clazz.getGenericSuperclass();
         if (!(genType instanceof ParameterizedType)) {
@@ -1065,7 +1073,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param domain DTO接口
      * @param fieldName setForceParams或insertForceParams
      */
-    private void buildExactDomain(T domain, String fieldName) throws Exception {
+    protected void buildExactDomain(T domain, String fieldName) throws Exception {
         //如果不是DTO接口，不构建
         if(!DTOUtils.isProxy(domain) && !DTOUtils.isInstance(domain)){
             return;
@@ -1107,7 +1115,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param domain
      * @return
      */
-    private Object getGetterValue(T domain, Method method){
+    protected Object getGetterValue(T domain, Method method){
         Object value = null;
         try {
             method.setAccessible(true);
@@ -1126,7 +1134,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
     /**
      * 如果metadata中有空值字段名，则解析为field is null
      */
-    private Set<String> parseNullField(T domain, Example.Criteria criteria){
+    protected Set<String> parseNullField(T domain, Example.Criteria criteria){
         Set<String> nullFileds = new HashSet<>();
         //如果metadata中有空值字段名，则解析为field is null
         Object nullValueField = DTOUtils.getDTOClass(domain).isInterface() ? domain.mget(IDTO.NULL_VALUE_FIELD) : domain.getMetadata(IDTO.NULL_VALUE_FIELD);
@@ -1166,7 +1174,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
     /**
      * 如果metadata中有非空值字段名，则解析为field is not null
      */
-    private Set<String> parseNotNullField(T domain, Example.Criteria criteria){
+    protected Set<String> parseNotNullField(T domain, Example.Criteria criteria){
         Set<String> notNullFileds = new HashSet<>();
         //如果metadata中有空值字段名，则解析为field is null
         Object notNullValueField = DTOUtils.getDTOClass(domain).isInterface() ? domain.mget(IDTO.NOT_NULL_VALUE_FIELD) : domain.getMetadata(IDTO.NOT_NULL_VALUE_FIELD);
@@ -1208,7 +1216,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param datas
      * @return
      */
-    private String buildInsertSql(List<T> datas) {
+    protected String buildInsertSql(List<T> datas) {
         if(CollectionUtils.isEmpty(datas)){
             return null;
         }
@@ -1263,7 +1271,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param item
      * @param mappingSize
      */
-    private void appendValues(StringBuilder sqlBuilder, Map<String, Object> item, int mappingSize){
+    protected void appendValues(StringBuilder sqlBuilder, Map<String, Object> item, int mappingSize){
         int k=0;
         sqlBuilder.append(" (");
         for (Map.Entry<String, Object> entry : item.entrySet()) {
@@ -1289,7 +1297,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param item
      * @param mappingSize
      */
-    private void appendColumns(StringBuilder sqlBuilder, Map<String, Object> item, int mappingSize){
+    protected void appendColumns(StringBuilder sqlBuilder, Map<String, Object> item, int mappingSize){
         sqlBuilder.append("(");
         int i=0;
         for (Map.Entry<String, Object> entry : item.entrySet()) {
@@ -1308,7 +1316,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param dtoClass
      * @param tableDomain
      */
-    private void appendTags(StringBuilder sqlBuilder, Class<T> dtoClass, ITaosTableDomain tableDomain){
+    protected void appendTags(StringBuilder sqlBuilder, Class<T> dtoClass, ITaosTableDomain tableDomain){
         //获取TaosTag
         List<String> tags = getTags(dtoClass);
         if(!tags.isEmpty()){
@@ -1343,7 +1351,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param datas
      * @return
      */
-    private List<Map<String, Object>> beanTableMapping(List<T> datas, Class<T> tClass) throws Exception {
+    protected List<Map<String, Object>> beanTableMapping(List<T> datas, Class<T> tClass) throws Exception {
         List<Map<String, Object>> list = new ArrayList<>(datas.size());
         if(tClass.isInterface()) {
             Method[] methods = tClass.getMethods();
@@ -1406,7 +1414,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param method
      * @return
      */
-    private String getColumnName(Method method) {
+    protected String getColumnName(Method method) {
         Column column = method.getAnnotation(Column.class);
         return column == null ? CamelTool.camelToUnderline(POJOUtils.getBeanField(method.getName()), false) : column.name();
     }
@@ -1416,7 +1424,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param field
      * @return
      */
-    private String getColumnName(Field field) {
+    protected String getColumnName(Field field) {
         Column column = field.getAnnotation(Column.class);
         return column == null ? CamelTool.camelToUnderline(field.getName(), false) : column.name();
     }
@@ -1426,7 +1434,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param dtoClass
      * @return
      */
-    private List<String> getTransients(Class<?> dtoClass){
+    protected List<String> getTransients(Class<?> dtoClass){
         List<String> transients = new ArrayList<>();
         for (Method method : dtoClass.getMethods()) {
             //只处理getter方法
@@ -1448,7 +1456,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      * @param dtoClass
      * @return
      */
-    private List<String> getTags(Class<?> dtoClass){
+    protected List<String> getTags(Class<?> dtoClass){
         List<String> tags = new ArrayList<>();
         for (Method method : dtoClass.getMethods()) {
             //只处理getter方法
