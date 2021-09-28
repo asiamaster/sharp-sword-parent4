@@ -24,5 +24,7 @@ public @interface Operator {
     public static final String NOT_IN = "not in";
     public static final String BETWEEN = "between";
     public static final String NOT_BETWEEN = "not between";
+    public static final String IS_NULL = "is null";
+    public static final String IS_NOT_NULL = "is not null";
     String value() default EQUAL;
 }

@@ -49,7 +49,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
     @Autowired
     private MyMapper<T> mapper;
     @Autowired
-    private JdbcTemplate jdbcTemplate;
+    protected JdbcTemplate jdbcTemplate;
     /**
      * 如果不使用通用mapper，可以自行在子类覆盖getDao方法
      */
@@ -636,9 +636,11 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             SqlOperator sqlOperator = method.getAnnotation(SqlOperator.class);
             Class<?> fieldType = method.getReturnType();
             Object value = getGetterValue(domain, method);
-            //没值就不拼接sql
-            if(value == null || "".equals(value)) {
-                continue;
+            //如果操作符不为空，并且不为is null和is not null，则没值就不拼接sql
+            if(operator == null || (!operator.value().equals(Operator.IS_NULL) && !operator.value().equals(Operator.IS_NOT_NULL))){
+                if(value == null || "".equals(value)) {
+                    continue;
+                }
             }
             //防注入
             if(value instanceof String && !checkXss((String)value)){
@@ -742,6 +744,44 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                 sb.append(", '").append(value).append("'");
             }
             criteria = criteria.orCondition(columnName + " " + operatorValue + "(" + sb.substring(1) + ")");
+        }else if(operatorValue.equals(Operator.IS_NULL) || operatorValue.equals(Operator.IS_NOT_NULL)){
+            criteria = criteria.orCondition(columnName + " " + operatorValue + " ");
+        }else if(operatorValue.equals(Operator.BETWEEN) || operatorValue.equals(Operator.NOT_BETWEEN)){
+            StringBuilder sb = new StringBuilder();
+            if(List.class.isAssignableFrom(fieldType)){
+                List list = (List)value;
+                //只支持长度为2的List
+                if((CollectionUtils.isEmpty(list) || list.size() != 2)){
+                    return false;
+                }
+                //将日期类型转变为字符串处理
+                convertDatetimeList(list);
+                if(list.get(0) instanceof String){
+                    sb.append("'").append(list.get(0)).append("' and '").append(list.get(1)).append("'");
+                }else {
+                    sb.append(list.get(0)).append(" and ").append(list.get(1));
+                }
+            }else if(fieldType.isArray()){
+                Object[] arrays = (Object[])value;
+                //只支持长度为2的数组
+                if((arrays == null || arrays.length != 2)){
+                    return false;
+                }
+                //将日期类型转变为字符串处理
+                arrays = convertDatetimeArray(arrays);
+                sb = buildBetweenStringBuilderByArray(arrays);
+            }else if(String.class.isAssignableFrom(fieldType)){
+                String[] arrays = value.toString().split(",");
+                //只支持长度为2的数组
+                if((arrays == null || arrays.length != 2)){
+                    return false;
+                }
+                sb = buildBetweenStringBuilderByArray(arrays);
+            }else{//不支持其它类型
+                return false;
+            }
+            sb.append(columnName).append(" ").append(operatorValue).append(sb);
+            criteria = criteria.orCondition(sb.toString());
         }else {
             criteria = criteria.orCondition(columnName + " " + operatorValue + " '" + value + "' ");
         }
@@ -838,6 +878,8 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
                 sb.append(", '").append(value).append("'");
             }
             criteria = criteria.andCondition(columnName + " " + operatorValue + "(" + sb.substring(1) + ")");
+        }else if(operatorValue.equals(Operator.IS_NULL) || operatorValue.equals(Operator.IS_NOT_NULL)){
+            criteria = criteria.andCondition(columnName + " " + operatorValue + " ");
         }else if(operatorValue.equals(Operator.BETWEEN) || operatorValue.equals(Operator.NOT_BETWEEN)){
             StringBuilder sb = new StringBuilder();
             if(List.class.isAssignableFrom(fieldType)){
@@ -874,7 +916,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             }
             sb.append(columnName).append(" ").append(operatorValue).append(sb);
             criteria = criteria.andCondition(sb.toString());
-        }else {
+        }else{
             criteria = criteria.andCondition(columnName + " " + operatorValue + " '" + value + "' ");
         }
         return true;
@@ -1230,10 +1272,13 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             return a.getDynamicTableName().compareTo(b.getDynamicTableName());
         });
         Table table = dtoClass.getAnnotation(Table.class);
+        //这里是超级表名
         String tableName = table == null ? CamelTool.camelToUnderline(dtoClass.getSimpleName(), false) : table.name();
 
         final List<Map<String, Object>> mappings;
         try {
+            // 构建Bean映射, 去掉tags中的字段
+            // key为列名，value为字段值
             mappings = beanTableMapping(datas, dtoClass);
         } catch (Exception e) {
             throw new DataErrorException(e);
@@ -1319,34 +1364,35 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
     protected void appendTags(StringBuilder sqlBuilder, Class<T> dtoClass, ITaosTableDomain tableDomain){
         //获取TaosTag
         List<String> tags = getTags(dtoClass);
-        if(!tags.isEmpty()){
-            sqlBuilder.append(" (");
-            int tagSize = tags.size();
-            tags.forEach(LambadaTools.forEachWithIndex((item, idx) -> {
-                sqlBuilder.append(item);
-                if(idx < (tagSize-1)) {
-                    sqlBuilder.append(", ");
-                }
-            }));
-            sqlBuilder.append(") TAGS (");
-            tags.forEach(LambadaTools.forEachWithIndex((item, i) -> {
-                Object tagValue = POJOUtils.getProperty(tableDomain, item);
-                if(tagValue instanceof Number){
-                    sqlBuilder.append(tagValue);
-                }else {
-                    sqlBuilder.append("'").append(tagValue).append("'");
-                }
-                if(i < (tagSize-1)) {
-                    sqlBuilder.append(", ");
-                }
-            }));
-            sqlBuilder.append(") ");
+        if(tags.isEmpty()){
+            return;
         }
+        sqlBuilder.append(" (");
+        int tagSize = tags.size();
+        tags.forEach(LambadaTools.forEachWithIndex((item, idx) -> {
+            sqlBuilder.append(item);
+            if(idx < (tagSize-1)) {
+                sqlBuilder.append(", ");
+            }
+        }));
+        sqlBuilder.append(") TAGS (");
+        tags.forEach(LambadaTools.forEachWithIndex((item, i) -> {
+            Object tagValue = POJOUtils.getProperty(tableDomain, item);
+            if(tagValue instanceof Number){
+                sqlBuilder.append(tagValue);
+            }else {
+                sqlBuilder.append("'").append(tagValue).append("'");
+            }
+            if(i < (tagSize-1)) {
+                sqlBuilder.append(", ");
+            }
+        }));
+        sqlBuilder.append(") ");
     }
 
     /**
      * 构建Bean映射, 去掉tags中的字段
-     * key为表名，value为字段值
+     * key为列名，value为字段值
      * 该方法不再支持动态代理DTO
      * @param datas
      * @return

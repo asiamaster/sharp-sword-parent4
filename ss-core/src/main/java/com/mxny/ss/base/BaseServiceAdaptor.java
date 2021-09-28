@@ -661,10 +661,12 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
                 }
             } catch (IllegalAccessException e) {
             }
-            //没值就不拼接sql
-            if(value == null) {
-                continue;
-            }
+			//如果操作符不为空，并且不为is null和is not null，则没值就不拼接sql
+			if(operator == null || (!operator.value().equals(Operator.IS_NULL) && !operator.value().equals(Operator.IS_NOT_NULL))){
+				if(value == null || "".equals(value)) {
+					continue;
+				}
+			}
 			//防注入
 			if(value instanceof String && !checkXss((String)value)){
 				throw new ParamErrorException("SQL注入拦截:"+value);
@@ -674,7 +676,7 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 				if (like != null) {
 					andLike(criteria, columnName, like.value(), value);
 				} else if (operator != null) {
-					if (!andOerator(criteria, columnName, fieldType, operator.value(), value)) {
+					if (!andOperator(criteria, columnName, fieldType, operator.value(), value)) {
 						continue;
 					}
 				} else if (findInSet != null) {
@@ -686,7 +688,7 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 				if (like != null) {
 					orLike(criteria, columnName, like.value(), value);
 				} else if (operator != null) {
-					if (!orOerator(criteria, columnName, fieldType, operator.value(), value)) {
+					if (!orOperator(criteria, columnName, fieldType, operator.value(), value)) {
 						continue;
 					}
 				} else if (findInSet != null) {
@@ -801,10 +803,12 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 			SqlOperator sqlOperator = method.getAnnotation(SqlOperator.class);
             Class<?> fieldType = method.getReturnType();
             Object value = getGetterValue(domain, method);
-            //没值就不拼接sql
-            if(value == null || "".equals(value)) {
-                continue;
-            }
+			//如果操作符不为空，并且不为is null和is not null，则没值就不拼接sql
+			if(operator == null || (!operator.value().equals(Operator.IS_NULL) && !operator.value().equals(Operator.IS_NOT_NULL))){
+				if(value == null || "".equals(value)) {
+					continue;
+				}
+			}
 			//防注入
 			if(value instanceof String && !checkXss((String)value)){
 				throw new ParamErrorException("SQL注入拦截:"+value);
@@ -813,7 +817,7 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 				if (like != null) {
 					andLike(criteria, columnName, like.value(), value);
 				} else if (operator != null) {
-					if (!andOerator(criteria, columnName, fieldType, operator.value(), value)) {
+					if (!andOperator(criteria, columnName, fieldType, operator.value(), value)) {
 						continue;
 					}
 				} else if (findInSet != null) {
@@ -825,7 +829,7 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 				if (like != null) {
 					orLike(criteria, columnName, like.value(), value);
 				} else if (operator != null) {
-					if (!orOerator(criteria, columnName, fieldType, operator.value(), value)) {
+					if (!orOperator(criteria, columnName, fieldType, operator.value(), value)) {
 						continue;
 					}
 				} else if (findInSet != null) {
@@ -885,7 +889,7 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 	 * @param value
 	 * @return 当操作符为IN并且为空集合，返回false，需要跳过
 	 */
-	private boolean orOerator(Example.Criteria criteria, String columnName, Class<?> fieldType, String operatorValue, Object value){
+	private boolean orOperator(Example.Criteria criteria, String columnName, Class<?> fieldType, String operatorValue, Object value){
 		if(operatorValue.equals(Operator.IN) || operatorValue.equals(Operator.NOT_IN)){
 			if(value instanceof Collection && CollectionUtils.isEmpty((Collection)value)){
 				return false;
@@ -911,6 +915,44 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 				sb.append(", '").append(value).append("'");
 			}
 			criteria = criteria.orCondition(columnName + " " + operatorValue + "(" + sb.substring(1) + ")");
+		}else if(operatorValue.equals(Operator.IS_NULL) || operatorValue.equals(Operator.IS_NOT_NULL)){
+			criteria = criteria.orCondition(columnName + " " + operatorValue + " ");
+		}else if(operatorValue.equals(Operator.BETWEEN) || operatorValue.equals(Operator.NOT_BETWEEN)){
+			StringBuilder sb = new StringBuilder();
+			if(List.class.isAssignableFrom(fieldType)){
+				List list = (List)value;
+				//只支持长度为2的List
+				if((CollectionUtils.isEmpty(list) || list.size() != 2)){
+					return false;
+				}
+				//将日期类型转变为字符串处理
+				convertDatetimeList(list);
+				if(list.get(0) instanceof String){
+					sb.append("'").append(list.get(0)).append("' and '").append(list.get(1)).append("'");
+				}else {
+					sb.append(list.get(0)).append(" and ").append(list.get(1));
+				}
+			}else if(fieldType.isArray()){
+				Object[] arrays = (Object[])value;
+				//只支持长度为2的数组
+				if((arrays == null || arrays.length != 2)){
+					return false;
+				}
+				//将日期类型转变为字符串处理
+				arrays = convertDatetimeArray(arrays);
+				sb = buildBetweenStringBuilderByArray(arrays);
+			}else if(String.class.isAssignableFrom(fieldType)){
+				String[] arrays = value.toString().split(",");
+				//只支持长度为2的数组
+				if((arrays == null || arrays.length != 2)){
+					return false;
+				}
+				sb = buildBetweenStringBuilderByArray(arrays);
+			}else{//不支持其它类型
+				return false;
+			}
+			sb.append(columnName).append(" ").append(operatorValue).append(sb);
+			criteria = criteria.orCondition(sb.toString());
 		}else {
 			criteria = criteria.orCondition(columnName + " " + operatorValue + " '" + value + "' ");
 		}
@@ -1009,7 +1051,7 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 	 * @param value
 	 * @return 当操作符和类型不匹配(如当操作符为IN并且为空集合)，返回false，需要跳过
 	 */
-	private boolean andOerator(Example.Criteria criteria, String columnName, Class<?> fieldType, String operatorValue, Object value){
+	private boolean andOperator(Example.Criteria criteria, String columnName, Class<?> fieldType, String operatorValue, Object value){
 		if(operatorValue.equals(Operator.IN) || operatorValue.equals(Operator.NOT_IN)){
 			if(value instanceof Collection && CollectionUtils.isEmpty((Collection)value)){
 				return false;
@@ -1035,6 +1077,8 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 				sb.append(", '").append(value).append("'");
 			}
 			criteria = criteria.andCondition(columnName + " " + operatorValue + "(" + sb.substring(1) + ")");
+		}else if(operatorValue.equals(Operator.IS_NULL) || operatorValue.equals(Operator.IS_NOT_NULL)){
+			criteria = criteria.andCondition(columnName + " " + operatorValue + " ");
 		}else if(operatorValue.equals(Operator.BETWEEN) || operatorValue.equals(Operator.NOT_BETWEEN)){
 			StringBuilder sb = new StringBuilder();
 			if(List.class.isAssignableFrom(fieldType)){
