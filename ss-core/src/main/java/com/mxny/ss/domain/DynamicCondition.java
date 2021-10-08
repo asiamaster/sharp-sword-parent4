@@ -5,6 +5,7 @@ import com.mxny.ss.metadata.annotation.EditMode;
 import com.mxny.ss.metadata.annotation.FieldDef;
 
 import javax.persistence.*;
+import java.util.Date;
 
 /**
  * 动态条件字段
@@ -60,16 +61,6 @@ public interface DynamicCondition extends DynamicField {
     void setFieldType(String fieldType);
 
     /**
-     * 条件类型
-     * 1: 查询条件， 2: 查询后缀(支持interval, sliding和 fill)
-     * @return
-     */
-    @Column(name="type")
-    Integer getType();
-
-    void setType(Integer type);
-
-    /**
      * 后缀函数名
      * @return
      */
@@ -84,6 +75,15 @@ public interface DynamicCondition extends DynamicField {
     @Column(name="value")
     Object getValue();
     void setValue(Object value);
+
+    /**
+     * 条件类型.
+     * 1: 查询条件， 2: 查询后缀(支持interval, sliding和 fill)
+     * @return
+     */
+    @Column(name="type")
+    Integer getType();
+    void setType(Integer type);
 
     /**
      * 运算符
@@ -136,4 +136,33 @@ public interface DynamicCondition extends DynamicField {
     @Column(name="notes")
     String getNotes();
     void setNotes(String notes);
+
+
+    /**
+     * 创建人id
+     * @return
+     */
+    Long getCreatorId();
+    void setCreatorId(Long creatorId);
+
+    /**
+     * 创建时间
+     * @return
+     */
+    Date getCreateTime();
+    void setCreateTime(Date createTime);
+
+    /**
+     * 修改人id
+     * @return
+     */
+    Long getModifierId();
+    void setModifierId(Long modifierId);
+
+    /**
+     * 修改时间
+     * @return
+     */
+    Date getModifyTime();
+    void setModifyTime(Date modifyTime);
 }

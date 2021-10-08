@@ -213,6 +213,7 @@ public class RedisCacheConfig extends CachingConfigurerSupport {
         // 设置hash key 和value序列化模式
         template.setHashKeySerializer(new StringRedisSerializer());
         template.setHashValueSerializer(jacksonSeial);
+        template.setDefaultSerializer(jacksonSeial);
         template.afterPropertiesSet();
         return template;
     }

@@ -10,15 +10,14 @@ import tk.mybatis.mapper.annotation.KeySql;
 
 import javax.persistence.Column;
 import javax.persistence.Id;
-import javax.persistence.Table;
 import javax.persistence.Transient;
-import java.util.Map;
+import java.util.List;
 
 /**
  * TAOS动态模型
  * 子类需要有Tag相关字段
  */
-@Table(name="dynamic_field")
+//@Table(name="dynamic_field")
 public interface DynamicDomain extends ITaosTableDomain, IMybatisForceParams, IDynamicResultType {
 
     @Override
@@ -51,13 +50,21 @@ public interface DynamicDomain extends ITaosTableDomain, IMybatisForceParams, ID
     void setDynamicTableName(String dynamicTableName);
 
     /**
+     * 业务号
+     * @return
+     */
+    @Transient
+    String getBusinessCode();
+    void setBusinessCode(String businessCode);
+
+    /**
      * 动态字段
      * 用于查询结果和插入数据
      * @return
      */
     @Transient
-    Map<String, DynamicField> getDynamicFields();
-    void setDynamicFields(Map<String, DynamicField> dynamicFields);
+    List<DynamicField> getDynamicFields();
+    void setDynamicFields(List<DynamicField> dynamicFields);
 
     /**
      * 动态条件字段
@@ -65,6 +72,15 @@ public interface DynamicDomain extends ITaosTableDomain, IMybatisForceParams, ID
      * @return
      */
     @Transient
-    Map<String, DynamicCondition> getDynamicConditions();
-    void setDynamicConditions(Map<String, DynamicCondition> dynamicConditions);
+    List<DynamicCondition> getDynamicConditions();
+    void setDynamicConditions(List<DynamicCondition> dynamicConditions);
+
+    /**
+     * 动态条件字段
+     * 用于查询条件
+     * @return
+     */
+    @Transient
+    List<SelectColumn> getSelectColumnList();
+    void setSelectColumnList(List<SelectColumn> selectColumnList);
 }

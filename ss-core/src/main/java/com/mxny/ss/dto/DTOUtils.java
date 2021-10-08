@@ -167,8 +167,8 @@ public class DTOUtils {
 	 * @param proxyClz
 	 * @return
 	 */
-	public  final static Class<?> getInstanceClass(Class<? extends IDTO> proxyClz) {
-		return DTOInstance.CLASS_CACHE.get(proxyClz);
+	public final static <T extends IDTO>  Class<T> getInstanceClass(Class<T> proxyClz) {
+		return (Class<T>) DTOInstance.CLASS_CACHE.get(proxyClz);
 	}
 
 	/**

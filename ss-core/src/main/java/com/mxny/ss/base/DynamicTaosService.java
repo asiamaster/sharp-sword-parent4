@@ -1,25 +1,32 @@
-package com.mxny.ss.service;
+package com.mxny.ss.base;
 
 import com.github.pagehelper.PageHelper;
 import com.google.common.collect.Lists;
 import com.mxny.ss.ClassCache;
-import com.mxny.ss.base.BaseTaosService;
 import com.mxny.ss.dao.ExampleExpand;
 import com.mxny.ss.domain.DynamicCondition;
 import com.mxny.ss.domain.DynamicDomain;
 import com.mxny.ss.domain.DynamicField;
+import com.mxny.ss.domain.SelectColumn;
+import com.mxny.ss.dto.DTOUtils;
 import com.mxny.ss.dto.IDTO;
+import com.mxny.ss.dto.ITaosDomain;
+import com.mxny.ss.dto.TaosFieldDescribe;
 import com.mxny.ss.exception.ParamErrorException;
 import com.mxny.ss.glossary.DynamicConditionType;
+import com.mxny.ss.service.DynamicFieldService;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.tuple.MutablePair;
 import org.mybatis.spring.MyBatisSystemException;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.support.JdbcUtils;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tk.mybatis.mapper.entity.Example;
 
 import java.lang.reflect.Field;
+import java.sql.ResultSetMetaData;
 import java.util.*;
 
 /**
@@ -29,6 +36,114 @@ import java.util.*;
  */
 @Service
 public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
+
+    @Autowired
+    protected DynamicFieldService dynamicFieldService;
+
+    /**
+     * 创建TAOS表
+     * @param dynamicFields
+     */
+    public void createTable(List<DynamicField> dynamicFields){
+        getJdbcTemplate().execute(buildCreateTableSql(dynamicFields));
+    }
+
+    /**
+     * 添加字段
+     * TDEngine只支持一次添加一个字段
+     * @param dynamicFields
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void addDynamicFields(List<DynamicField> dynamicFields){
+        for (DynamicField dynamicField : dynamicFields) {
+            addDynamicField(dynamicField);
+        }
+    }
+
+    /**
+     * 添加动态字段，并添加数据库列
+     * @param dynamicField
+     * @return
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void addDynamicField(DynamicField dynamicField){
+        if (StringUtils.isBlank(dynamicField.getColumnName())
+                || StringUtils.isBlank(dynamicField.getTableName())
+                || StringUtils.isBlank(dynamicField.getDataType())) {
+            throw new ParamErrorException("字段类型、字段名或表名为空");
+        }
+        DynamicField condition = DTOUtils.newInstance(DynamicField.class);
+        condition.setColumnName(dynamicField.getColumnName());
+        condition.setTableName(dynamicField.getTableName());
+        condition.setEnabled(true);
+        List<DynamicField> list = dynamicFieldService.list(condition);
+        if (!list.isEmpty()) {
+            throw new ParamErrorException("动态字段重复");
+        }
+        dynamicField.setEnabled(true);
+        dynamicFieldService.insertSelective(dynamicField);
+//        DynamicRoutingDataSourceContextHolder.push(GlobalConstants.DS_TDENGINE);
+//        addColumn(dynamicField);
+//        DynamicRoutingDataSourceContextHolder.clear();
+    }
+
+    /**
+     * 添加TAOS动态列
+     * @param dynamicFields
+     * @return
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void addColumns(List<DynamicField> dynamicFields) {
+        for (DynamicField dynamicField : dynamicFields) {
+            addColumn(dynamicField);
+        }
+    }
+
+    /**
+     * 添加单个字段
+     * @param dynamicField
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void addColumn(DynamicField dynamicField){
+        getJdbcTemplate().execute(buildAddColumnSql(dynamicField));
+    }
+
+    /**
+     * 删除TAOS单个字段
+     * @param dynamicField
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void dropDynamicField(DynamicField dynamicField){
+        if (StringUtils.isBlank(dynamicField.getColumnName())
+                || StringUtils.isBlank(dynamicField.getTableName())){
+            throw new ParamErrorException("字段名或表名为空");
+        }
+        DynamicField condition = DTOUtils.newInstance(DynamicField.class);
+        condition.setColumnName(dynamicField.getColumnName());
+        condition.setTableName(dynamicField.getTableName());
+        condition.setEnabled(true);
+        List<DynamicField> list = dynamicFieldService.list(condition);
+        if (list.isEmpty()) {
+            throw new ParamErrorException("字段不存在");
+        }
+        dynamicFieldService.deleteByExample(dynamicField);
+//        DynamicRoutingDataSourceContextHolder.push(GlobalConstants.DS_TDENGINE);
+//        dropColumn(dynamicField);
+//        DynamicRoutingDataSourceContextHolder.clear();
+    }
+
+    /**
+     * 删除TAOS单个字段
+     * @param dynamicField
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void dropColumn(DynamicField dynamicField){
+        if (StringUtils.isBlank(dynamicField.getColumnName())
+                || StringUtils.isBlank(dynamicField.getTableName())) {
+            throw new ParamErrorException("字段名或表名为空");
+        }
+        getJdbcTemplate().execute(buildDropColumnSql(dynamicField));
+    }
 
     /**
      * 查询动态实体
@@ -124,17 +239,17 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
         if(CollectionUtils.isEmpty(datas) || dynamicDomain == null){
             return;
         }
-        jdbcTemplate.execute(buildDynamicInsertSql(dynamicDomain, datas));
+        getJdbcTemplate().execute(buildDynamicInsertSql(dynamicDomain, datas));
     }
 
     /**
      * 构建动态批量插入sql
      * 由于DynamicDomain仅为单子表的语义模型，所有该方法只支持单子表的批量插入
-     * @param dynamicDomain
+     * @param dynamicDomain， 主要参数：DynamicFields、 TableName和DynamicTableName
      * @return
      */
     public <T extends DynamicDomain> String buildDynamicInsertSql(T dynamicDomain, List<Map> datas) {
-        Map<String, DynamicField> dynamicFields = dynamicDomain.getDynamicFields();
+        List<DynamicField> dynamicFields = dynamicDomain.getDynamicFields();
         if(dynamicFields == null || dynamicFields.isEmpty() || CollectionUtils.isEmpty(datas)){
             return null;
         }
@@ -173,8 +288,123 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
         return sqlBuilder.toString();
     }
 
+    /**
+     * 查询表结构
+     * @param tableName
+     * @return
+     */
+    public List<TaosFieldDescribe> describe(String tableName) {
+        return getJdbcTemplate().query("DESCRIBE "+tableName, (rs, rowNum) ->{
+            ResultSetMetaData rsmd = rs.getMetaData();
+            int columnCount = rsmd.getColumnCount();
+            TaosFieldDescribe fieldDescribe = DTOUtils.newInstance(TaosFieldDescribe.class);
+            for(int i = 1; i <= columnCount; ++i) {
+                String column = JdbcUtils.lookupColumnName(rsmd, i);
+                switch (column) {
+                    case "Field" : fieldDescribe.setField(rs.getString(column));break;
+                    case "Type" : fieldDescribe.setType(rs.getString(column));break;
+                    case "Length" : fieldDescribe.setLength(rs.getInt(column));break;
+                    case "Note" : fieldDescribe.setNote(rs.getString(column));break;
+                }
+            }
+            return fieldDescribe;
+        });
+    }
 
     // ==============================================================================================
+
+    /**
+     * 构建建表SQL
+     * @param dynamicFields
+     * @return
+     */
+    protected String buildCreateTableSql(List<DynamicField> dynamicFields){
+        if (CollectionUtils.isEmpty(dynamicFields)) {
+            return null;
+        }
+        StringBuilder sql = new StringBuilder("CREATE STABLE IF NOT EXISTS ");
+        sql.append(dynamicFields.get(0).getTableName());
+        sql.append(" (").append(ITaosDomain.ID).append(" TIMESTAMP,");
+        //一般tag都不会太多
+        List<DynamicField> tags = new ArrayList<>(4);
+        for (DynamicField dynamicField : dynamicFields) {
+            //跳过主键
+            if (dynamicField.getColumnName().equalsIgnoreCase(ITaosDomain.ID)) {
+                continue;
+            }
+            //默认添加字段名
+            if (dynamicField.getIsTag() == null || dynamicField.getIsTag() == false) {
+                sql.append(dynamicField.getColumnName()).append(" ").append(dynamicField.getDataType());
+                //字段为空，则只添加数据类型
+                if (dynamicField.getDataLength() == null) {
+                    sql.append(",");
+                }else{
+                    sql.append("(").append(dynamicField.getDataLength()).append("),");
+                }
+            }else{
+                tags.add(dynamicField);
+            }
+        }
+        StringBuilder resultSql = new StringBuilder();
+        resultSql.append(StringUtils.stripEnd(sql.toString(), ",")).append(")");
+        if (tags.isEmpty()) {
+            return resultSql.toString();
+        }
+        resultSql.append(" TAGS (");
+        sql = new StringBuilder();
+        for (DynamicField tag : tags) {
+            sql.append(tag.getColumnName()).append(" ").append(tag.getDataType());
+            //字段为空，则只添加数据类型
+            if (tag.getDataLength() == null) {
+                sql.append(",");
+            } else {
+                sql.append("(").append(tag.getDataLength()).append("),");
+            }
+        }
+        resultSql.append(StringUtils.stripEnd(sql.toString(), ",")).append(")");
+        return resultSql.toString();
+    }
+
+    /**
+     * 构建新增列SQL
+     * @param dynamicField
+     * @return
+     */
+    protected String buildAddColumnSql(DynamicField dynamicField){
+        StringBuilder sql = new StringBuilder("ALTER STABLE ");
+        sql.append(dynamicField.getTableName());
+        //默认添加字段名
+        if (dynamicField.getIsTag() == null || dynamicField.getIsTag() == false) {
+            sql.append(" ADD COLUMN ");
+        }else{
+            sql.append(" ADD TAG ");
+        }
+        sql.append(dynamicField.getColumnName()).append(" ");
+        sql.append(dynamicField.getDataType());
+        //字段为空，则只添加数据类型
+        if (dynamicField.getDataLength() != null) {
+            sql.append("(").append(dynamicField.getDataLength()).append(")");
+        }
+        return sql.toString();
+    }
+
+    /**
+     * 构建删除字段SQL
+     * @param dynamicField
+     * @return
+     */
+    protected String buildDropColumnSql(DynamicField dynamicField){
+        StringBuilder sql = new StringBuilder("ALTER STABLE ");
+        sql.append(dynamicField.getTableName());
+        //默认添加字段名
+        if (dynamicField.getIsTag() == null || dynamicField.getIsTag() == false) {
+            sql.append(" DROP COLUMN ");
+        } else {
+            sql.append(" DROP TAG ");
+        }
+        sql.append(dynamicField.getColumnName());
+        return sql.toString();
+    }
 
     /**
      * 添加insert tags，包含columns和values
@@ -224,12 +454,11 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
         List<Map<String, Object>> fieldList = new ArrayList<>(datas.size());
         List<Map<String, Object>> tagList = new ArrayList<>(datas.size());
         for (Map data : datas) {
-            Map<String, DynamicField> dynamicFields = dynamicDomain.getDynamicFields();
+            List<DynamicField> dynamicFields = dynamicDomain.getDynamicFields();
             Map<String, Object> fieldMap = new HashMap<>(dynamicFields.size());
             //一般tag数量不会太多
             Map<String, Object> tagMap = new HashMap<>(4);
-            for (Map.Entry<String, DynamicField> entry : dynamicFields.entrySet()) {
-                DynamicField dynamicField = entry.getValue();
+            for (DynamicField dynamicField : dynamicFields) {
                 if (dynamicField.getIsTag()) {
                     tagMap.put(dynamicField.getColumnName(), data.get(dynamicField.getFieldName()));
                 }else {
@@ -276,13 +505,12 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
         //解析空值字段(where xxx is null)
         Set<String> nullFields = parseNullField(domain, criteria);
         Set<String> notNullFields = parseNotNullField(domain, criteria);
-        Map<String, DynamicCondition> dynamicConditions = domain.getDynamicConditions();
+        List<DynamicCondition> dynamicConditions = domain.getDynamicConditions();
         if(dynamicConditions == null || dynamicConditions.isEmpty()){
             return;
         }
-        for (Map.Entry<String, DynamicCondition> entry : dynamicConditions.entrySet()) {
-            DynamicCondition dynamicCondition = entry.getValue();
-            //不处理非条件类型
+        for (DynamicCondition dynamicCondition : dynamicConditions) {
+            //这里只处理条件类型，非条件类型在whereSuffix处理
             if (!DynamicConditionType.CONDITION.getCode().equals(dynamicCondition.getType())) {
                 continue;
             }
@@ -324,14 +552,14 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
     /**
      * 设置@OrderBy注解的排序
      */
-    protected void buildDynamicFieldsOrderByClause(Map<String, DynamicCondition> dynamicFields, Example example){
+    protected void buildDynamicFieldsOrderByClause(List<DynamicCondition> dynamicFields, Example example){
         StringBuilder orderByClauseBuilder = new StringBuilder();
-        for (Map.Entry<String, DynamicCondition> entry : dynamicFields.entrySet()) {
-            String orderBy = entry.getValue().getOrderBy();
+        for (DynamicCondition entry : dynamicFields) {
+            String orderBy = entry.getOrderBy();
             if(orderBy == null) {
                 continue;
             }
-            orderByClauseBuilder.append(","+entry.getValue().getColumnName()+" "+orderBy);
+            orderByClauseBuilder.append(","+entry.getColumnName()+" "+orderBy);
         }
         if(orderByClauseBuilder.length()>1) {
             example.setOrderByClause(orderByClauseBuilder.substring(1));
@@ -349,18 +577,17 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
         if(StringUtils.isNotBlank(domain.getWhereSuffixSql())){
             exampleExpand.setWhereSuffixSql(domain.getWhereSuffixSql());
         }else{
-            Map<String, DynamicCondition> dynamicConditions = domain.getDynamicConditions();
+            List<DynamicCondition> dynamicConditions = domain.getDynamicConditions();
             if (dynamicConditions == null || dynamicConditions.isEmpty()) {
                 return;
             }
             StringBuilder suffix = new StringBuilder(32);
-            for (Map.Entry<String, DynamicCondition> entry : dynamicConditions.entrySet()) {
-                DynamicCondition dynamicCondition = entry.getValue();
+            for (DynamicCondition dynamicCondition : dynamicConditions) {
                 if (DynamicConditionType.SUFFIX.getCode().equals(dynamicCondition.getType())) {
                     if (dynamicCondition.getFunc() != null) {
                         suffix.append(dynamicCondition.getFunc()).append("(").append(dynamicCondition.getValue()).append(") ");
-                    }else{
-                        suffix.append(entry.getValue());
+                    } else {
+                        suffix.append(dynamicCondition.getValue());
                     }
                 }
             }
@@ -390,25 +617,32 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
         // 暂不考虑查询Tag
         if(CollectionUtils.isEmpty(columnsSet)){
             columnsSet = new HashSet<>(domain.getDynamicFields().size());
-            //先找出所有Func注解
-            for (Map.Entry<String, DynamicField> entry : domain.getDynamicFields().entrySet()) {
-                DynamicField dynamicField = entry.getValue();
-                //暂不查询tag
-                if(dynamicField.getIsTag()){
-                    continue;
-                }
-                //有Func的字段
-                String func = dynamicField.getFunc();
-                String columnName = dynamicField.getColumnName();
-                if(StringUtils.isBlank(func)){
-                    if (StringUtils.isBlank(dynamicField.getAlias())) {
-                        columnsSet.add(columnName);
+            //如果动态查询列不为空，则转为columnsSet，否则查询所有字段
+            if(domain.getSelectColumnList() != null && !domain.getSelectColumnList().isEmpty()){
+                //先找出所有Func注解
+                for (SelectColumn selectColumn : domain.getSelectColumnList()) {
+                    //有Func的字段
+                    String func = selectColumn.getFunc();
+                    String columnName = selectColumn.getColumnName();
+                    if(StringUtils.isBlank(func)){
+                        if (StringUtils.isBlank(selectColumn.getAlias())) {
+                            columnsSet.add(columnName);
+                        }else{
+                            columnsSet.add(columnName + " as " + selectColumn.getAlias());
+                        }
                     }else{
-                        columnsSet.add(columnName + " as " + dynamicField.getAlias());
+                        String alias = StringUtils.isBlank(selectColumn.getAlias()) ? columnName : selectColumn.getAlias();
+                        columnsSet.add(new StringBuilder().append(func).append("(").append(selectColumn.getColumnName()).append(") as ").append(alias).toString());
                     }
-                }else{
-                    String alias = StringUtils.isBlank(dynamicField.getAlias()) ? columnName : dynamicField.getAlias();
-                    columnsSet.add(new StringBuilder().append(func).append("(").append(entry.getValue().getColumnName()).append(") as ").append(alias).toString());
+                }
+            }else{
+                //先找出所有Func注解
+                for (DynamicField dynamicField : domain.getDynamicFields()) {
+                    //暂不查询tag
+                    if(dynamicField.getIsTag()){
+                        continue;
+                    }
+                    columnsSet.add(dynamicField.getColumnName() + " as " + dynamicField.getFieldName());
                 }
             }
         }

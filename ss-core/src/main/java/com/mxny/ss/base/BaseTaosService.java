@@ -27,6 +27,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.transaction.annotation.Transactional;
+import sun.reflect.generics.reflectiveObjects.ParameterizedTypeImpl;
 import tk.mybatis.mapper.entity.Example;
 import tk.mybatis.mapper.entity.IDynamicTableName;
 
@@ -58,6 +59,14 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
     }
 
     /**
+     * 用于子类重写
+     * @return
+     */
+    protected JdbcTemplate getJdbcTemplate(){
+        return jdbcTemplate;
+    }
+
+    /**
      * 普通插入, 无值时将插入null
      * 例:INSERT INTO d1001 (ts, current, phase) VALUES ('2021-07-13 14:06:33.196', null, 0.31);
      * @param t
@@ -86,7 +95,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
      */
     @Transactional(rollbackFor = Exception.class)
     public void insertSelectiveByTags(T t) {
-        jdbcTemplate.execute(buildInsertSql(Lists.newArrayList(t)));
+        getJdbcTemplate().execute(buildInsertSql(Lists.newArrayList(t)));
     }
 
     /**
@@ -103,7 +112,7 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
         if(org.apache.commons.collections.CollectionUtils.isEmpty(list)){
             return;
         }
-        jdbcTemplate.execute(buildInsertSql(list));
+        getJdbcTemplate().execute(buildInsertSql(list));
     }
 
     public T get(Long key) {
@@ -1096,6 +1105,16 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
     protected Class<Object> getSuperClassGenricType(final Class clazz, final int index) {
         //返回表示此 Class 所表示的实体（类、接口、基本类型或 void）的直接超类的 Type。
         Type genType = clazz.getGenericSuperclass();
+        // 一直往上找到BaseTaosService
+        while (genType != null) {
+            if (genType instanceof Class && !BaseTaosService.class.equals(genType)) {
+                genType = ((Class<?>) genType).getGenericSuperclass();
+            } else if (genType instanceof ParameterizedTypeImpl && !BaseTaosService.class.equals(((ParameterizedTypeImpl) genType).getRawType())) {
+                genType = ((Class<?>) genType).getGenericSuperclass();
+            }else {
+                break;
+            }
+        }
         if (!(genType instanceof ParameterizedType)) {
             return Object.class;
         }

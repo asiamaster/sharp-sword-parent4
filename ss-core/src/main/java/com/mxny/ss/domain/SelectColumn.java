@@ -9,10 +9,10 @@ import javax.persistence.*;
 import java.util.Date;
 
 /**
- * 动态字段
+ * 查询列
  */
-@Table(name = "dynamic_field")
-public interface DynamicField extends IBaseDomain {
+@Table(name = "select_column")
+public interface SelectColumn extends IBaseDomain {
 
     @Override
     @Id
@@ -26,14 +26,6 @@ public interface DynamicField extends IBaseDomain {
     void setId(Long id);
 
     /**
-     * 是否TaosTag, 1:是, 0:否
-     * @return
-     */
-    @Column(name="is_tag")
-    Boolean getIsTag();
-    void setIsTag(Boolean isTag);
-
-    /**
      * 表名
      * @return
      */
@@ -41,15 +33,6 @@ public interface DynamicField extends IBaseDomain {
     String getTableName();
 
     void setTableName(String tableName);
-
-    /**
-     * 字段名
-     * @return
-     */
-    @Column(name="field_name")
-    String getFieldName();
-
-    void setFieldName(String fieldName);
 
     /**
      * 数据库列名
@@ -61,31 +44,30 @@ public interface DynamicField extends IBaseDomain {
     void setColumnName(String columnName);
 
     /**
-     * 字段类全名
+     * 函数名
      * @return
      */
-    @Column(name="field_type")
-    String getFieldType();
-
-    void setFieldType(String fieldType);
+    @Column(name="func")
+    String getFunc();
+    void setFunc(String func);
 
     /**
-     * 数据库类型
+     * 别名
      * @return
      */
-    @Column(name="data_type")
-    String getDataType();
-
-    void setDataType(String dataType);
+    @Column(name="alias")
+    String getAlias();
+    void setAlias(String alias);
 
     /**
-     * 数据长度
+     * 业务编码
+     * 默认'defaults'是所有字段信息
+     * asc or desc
      * @return
      */
-    @Column(name="data_length")
-    Integer getDataLength();
-
-    void setDataLength(Integer dataLength);
+    @Column(name="business_code")
+    String getBusinessCode();
+    void setBusinessCode(String businessCode);
 
     /**
      * 是否启用
@@ -102,6 +84,7 @@ public interface DynamicField extends IBaseDomain {
     @Column(name="notes")
     String getNotes();
     void setNotes(String notes);
+
 
     /**
      * 创建人id
@@ -130,4 +113,5 @@ public interface DynamicField extends IBaseDomain {
      */
     Date getModifyTime();
     void setModifyTime(Date modifyTime);
+
 }
