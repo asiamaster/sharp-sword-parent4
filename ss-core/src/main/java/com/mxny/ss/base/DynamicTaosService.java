@@ -224,7 +224,7 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
      * @param data
      */
     @Transactional(rollbackFor = Exception.class)
-    public void insertSelectiveByTags(DynamicDomain dynamicDomain, Map data) {
+    public void insertByTags(DynamicDomain dynamicDomain, Map data) {
         batchInsert(dynamicDomain, Lists.newArrayList(data));
     }
 
@@ -244,7 +244,7 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
 
     /**
      * 构建动态批量插入sql
-     * 由于DynamicDomain仅为单子表的语义模型，所有该方法只支持单子表的批量插入
+     * 由于DynamicDomain仅为单子表的语义模型，所以该方法只支持单子表的批量插入
      * @param dynamicDomain， 主要参数：DynamicFields、 TableName和DynamicTableName
      * @return
      */

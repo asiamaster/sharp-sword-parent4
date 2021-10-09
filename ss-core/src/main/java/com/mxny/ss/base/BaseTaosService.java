@@ -33,6 +33,7 @@ import tk.mybatis.mapper.entity.IDynamicTableName;
 
 import javax.persistence.*;
 import java.lang.reflect.*;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
@@ -1342,6 +1343,9 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             Object value = entry.getValue();
             if(value == null){
                 sqlBuilder.append("null");
+            }else if(value instanceof Double) {
+                //解决科学计数法问题
+                sqlBuilder.append(BigDecimal.valueOf((Double)value).toPlainString());
             }else if(value instanceof Number) {
                 sqlBuilder.append(value);
             }else{
