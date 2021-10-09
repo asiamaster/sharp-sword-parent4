@@ -122,6 +122,15 @@ public interface DynamicCondition extends DynamicField {
     void setBusinessCode(String businessCode);
 
     /**
+     * 排序号
+     * @return
+     */
+    @OrderBy
+    @Column(name="order_number")
+    Integer getOrderNumber();
+    void setOrderNumber(Integer orderNumber);
+
+    /**
      * 是否启用
      * 1： 启用，0：禁用
      * @return
