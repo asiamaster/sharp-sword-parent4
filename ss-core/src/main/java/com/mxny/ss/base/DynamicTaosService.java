@@ -2,7 +2,7 @@ package com.mxny.ss.base;
 
 import com.github.pagehelper.PageHelper;
 import com.google.common.collect.Lists;
-import com.mxny.ss.ClassCache;
+import com.mxny.ss.constant.ClassCache;
 import com.mxny.ss.dao.ExampleExpand;
 import com.mxny.ss.domain.DynamicCondition;
 import com.mxny.ss.domain.DynamicDomain;
@@ -538,7 +538,8 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
                 Class aClass = ClassCache.classCaches.get(dynamicCondition.getFieldType());
                 if (aClass == null) {
                     try {
-                        ClassCache.classCaches.put(dynamicCondition.getFieldType(), Class.forName(dynamicCondition.getFieldType()));
+                        aClass = Class.forName(dynamicCondition.getFieldType());
+                        ClassCache.classCaches.put(dynamicCondition.getFieldType(), aClass);
                     } catch (ClassNotFoundException e) {
                         e.printStackTrace();
                         continue;

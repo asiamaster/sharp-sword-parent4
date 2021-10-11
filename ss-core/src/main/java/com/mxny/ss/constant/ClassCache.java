@@ -1,4 +1,4 @@
-package com.mxny.ss;
+package com.mxny.ss.constant;
 
 import java.math.BigDecimal;
 import java.time.Instant;
