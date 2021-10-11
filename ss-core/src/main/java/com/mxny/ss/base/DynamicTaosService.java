@@ -491,7 +491,9 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
             example.setTableName(domain.getTableName());
         }
         //设置@OrderBy注解的排序(会被ITaosDomain中的排序字段覆盖)
-        buildDynamicFieldsOrderByClause(domain.getDynamicConditions(), example);
+        if (CollectionUtils.isNotEmpty(domain.getDynamicConditions())) {
+            buildDynamicFieldsOrderByClause(domain.getDynamicConditions(), example);
+        }
         //设置ITaosDomain中的排序字段(会覆盖@OrderBy注解的排序)
         setOrderBy(domain, example);
     }
@@ -557,9 +559,9 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
     /**
      * 设置@OrderBy注解的排序
      */
-    protected void buildDynamicFieldsOrderByClause(List<DynamicCondition> dynamicFields, Example example){
+    protected void buildDynamicFieldsOrderByClause(List<DynamicCondition> dynamicConditions, Example example){
         StringBuilder orderByClauseBuilder = new StringBuilder();
-        for (DynamicCondition entry : dynamicFields) {
+        for (DynamicCondition entry : dynamicConditions) {
             String orderBy = entry.getOrderBy();
             if(orderBy == null) {
                 continue;
