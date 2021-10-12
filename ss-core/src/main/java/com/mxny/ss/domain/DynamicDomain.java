@@ -12,6 +12,7 @@ import javax.persistence.Column;
 import javax.persistence.Id;
 import javax.persistence.Transient;
 import java.util.List;
+import java.util.Map;
 
 /**
  * TAOS动态模型
@@ -19,6 +20,8 @@ import java.util.List;
  */
 //@Table(name="dynamic_field")
 public interface DynamicDomain extends ITaosTableDomain, IMybatisForceParams, IDynamicResultType {
+    //动态表名字段名，用于批量插入数据行的动态表名
+    String DYNAMIC_TABLE_NAME_KEY = "dynamicTableName";
 
     @Override
     @Id
@@ -40,6 +43,7 @@ public interface DynamicDomain extends ITaosTableDomain, IMybatisForceParams, ID
     void setTableName(String tableName);
 
     /**
+     * 动态子表名
      * 当该方法返回值不为空时，就会使用返回值作为表名
      * @return
      */
@@ -83,4 +87,13 @@ public interface DynamicDomain extends ITaosTableDomain, IMybatisForceParams, ID
     @Transient
     List<SelectColumn> getSelectColumnList();
     void setSelectColumnList(List<SelectColumn> selectColumnList);
+
+    /**
+     * 每个字段对应的数据(包括tag)
+     * key为DynamicField.fieldName
+     * @return
+     */
+    @Transient
+    List<Map> getDatas();
+    void setDatas(List<Map> datas);
 }

@@ -253,6 +253,16 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
         if(dynamicFields == null || dynamicFields.isEmpty() || CollectionUtils.isEmpty(datas)){
             return null;
         }
+        //按每行数据的动态表名排序
+        Collections.sort(datas, (a, b) -> {
+            Object dynamicTableName1 = a.get(DynamicDomain.DYNAMIC_TABLE_NAME_KEY);
+            Object dynamicTableName2 = b.get(DynamicDomain.DYNAMIC_TABLE_NAME_KEY);
+            if (dynamicTableName1 == null || dynamicTableName2 == null) {
+                return 0;
+            }
+            return dynamicTableName1.toString().compareTo(dynamicTableName2.toString());
+        });
+
         //超级表名
         String tableName = dynamicDomain.getTableName();
         // 构建Bean映射, 去掉tags中的字段
@@ -268,8 +278,12 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
         //记录当前表名，因为排了序，有不同的表名后，需要重新计算SQL
         String lastTableName = "";
         //插入的数据行数
-        int size = datas.size();
+        int size = fieldList.size();
         for (int index = 0; index < size; index++) {
+            Object currentDynamicTableName = datas.get(index).get(DynamicDomain.DYNAMIC_TABLE_NAME_KEY);
+            if (currentDynamicTableName != null) {
+                dynamicDomain.setDynamicTableName(currentDynamicTableName.toString());
+            }
             //重复的表名只需要拼接values值部分
             if(lastTableName.equals(dynamicDomain.getDynamicTableName())){
                 appendValues(sqlBuilder, fieldList.get(index), fieldSize);

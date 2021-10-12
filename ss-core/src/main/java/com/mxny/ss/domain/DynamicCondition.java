@@ -1,5 +1,6 @@
 package com.mxny.ss.domain;
 
+import com.mxny.ss.dto.IBaseDomain;
 import com.mxny.ss.metadata.FieldEditor;
 import com.mxny.ss.metadata.annotation.EditMode;
 import com.mxny.ss.metadata.annotation.FieldDef;
@@ -11,7 +12,7 @@ import java.util.Date;
  * 动态条件字段
  */
 @Table(name = "dynamic_condition")
-public interface DynamicCondition extends DynamicField {
+public interface DynamicCondition extends IBaseDomain {
 
     @Override
     @Id
