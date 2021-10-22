@@ -1346,6 +1346,8 @@ public abstract class BaseTaosService<T extends ITaosDomain> {
             }else if(value instanceof Double) {
                 //解决科学计数法问题
                 sqlBuilder.append(BigDecimal.valueOf((Double)value).toPlainString());
+            }else if(value instanceof BigDecimal) {
+                sqlBuilder.append(((BigDecimal)value).toPlainString());
             }else if(value instanceof Number) {
                 sqlBuilder.append(value);
             }else{
