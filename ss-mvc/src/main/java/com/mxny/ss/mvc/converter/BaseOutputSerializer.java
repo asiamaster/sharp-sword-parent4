@@ -16,7 +16,6 @@ import java.lang.reflect.Type;
  */
 public class BaseOutputSerializer implements ObjectSerializer {
     public static final BaseOutputSerializer instance = new BaseOutputSerializer();
-    private static final String defaultPattern = "yyyy-MM-dd";
 
     public BaseOutputSerializer() {
     }
@@ -28,7 +27,8 @@ public class BaseOutputSerializer implements ObjectSerializer {
             out.writeNull();
         } else {
             BaseOutput result = (BaseOutput) object;
-            out.writeString(JSON.toJSONString(result, SerializerFeature.WRITE_MAP_NULL_FEATURES, SerializerFeature.WriteDateUseDateFormat , SerializerFeature.IgnoreErrorGetter));
+            out.write(JSON.toJSONString(result, SerializerFeature.WRITE_MAP_NULL_FEATURES, SerializerFeature.WriteDateUseDateFormat , SerializerFeature.IgnoreErrorGetter));
+            out.flush();
         }
     }
 }
