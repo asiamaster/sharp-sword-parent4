@@ -5,6 +5,7 @@ package com.mxny.ss.redis.boot;
  */
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
@@ -200,12 +201,20 @@ public class RedisCacheConfig extends CachingConfigurerSupport {
         template.setConnectionFactory(factory);
         //使用Jackson2JsonRedisSerializer来序列化和反序列化redis的value值（默认使用JDK的序列化方式）
         Jackson2JsonRedisSerializer jacksonSeial = new Jackson2JsonRedisSerializer(Object.class);
-        ObjectMapper om = new ObjectMapper();
+        ObjectMapper mapper = new ObjectMapper();
         // 指定要序列化的域，field,get和set,以及修饰符范围，ANY是都有包括private和public
-        om.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.ANY);
+        mapper.setVisibility(PropertyAccessor.ALL, JsonAutoDetect.Visibility.NONE);
+        //只序列化属性， 因为JACKSON无法处理DTO接口
+        mapper.setVisibility(PropertyAccessor.FIELD, JsonAutoDetect.Visibility.ANY);
         // 指定序列化输入的类型，类必须是非final修饰的，final修饰的类，比如String,Integer等会跑出异常
-        om.enableDefaultTyping(ObjectMapper.DefaultTyping.NON_FINAL);
-        jacksonSeial.setObjectMapper(om);
+        mapper.enableDefaultTyping(ObjectMapper.DefaultTyping.NON_FINAL);
+        //通过该方法对mapper对象进行设置，所有序列化的对象都将按改规则进行系列化
+        //Include.Include.ALWAYS 默认
+        //Include.NON_DEFAULT 属性为默认值不序列化
+        //Include.NON_EMPTY 属性为 空（“”）  或者为 NULL 都不序列化
+        //Include.NON_NULL 属性为NULL 不序列化
+        mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
+        jacksonSeial.setObjectMapper(mapper);
         // 值采用json序列化
         template.setValueSerializer(jacksonSeial);
         //使用StringRedisSerializer来序列化和反序列化redis的key值
