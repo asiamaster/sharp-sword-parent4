@@ -147,11 +147,11 @@ public class ExcelUtils {
             case BOOLEAN:
                 return cell.getBooleanCellValue();
             case ERROR:
-                return "错误";
+                return null;
             case BLANK:
-                return "空";
+                return null;
             case FORMULA:
-                return "错误";
+                return cell.getStringCellValue();
             default:
                 return cell.getStringCellValue();
         }
