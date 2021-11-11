@@ -119,6 +119,12 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 
 	@Override
 	@Transactional(rollbackFor = Exception.class)
+	public int updateSelectiveWithVersion(T condtion) {
+		return getDao().updateByPrimaryKeySelectiveWithVersion(condtion);
+	}
+
+	@Override
+	@Transactional(rollbackFor = Exception.class)
 //	@Caching(evict = {@CacheEvict(value = "rc", key = "#root.getTarget().redisKey()+':id:' + #condtion.getId()")})
 	public int updateSelectiveByExample(T domain, T condition) {
 		Class tClazz = getSuperClassGenricType(getClass(), 0);
@@ -199,6 +205,12 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 //	@Caching(evict = {@CacheEvict(value = "rc", key = "#root.getTarget().redisKey()+':id:' + #condtion.getId()")})
 	public int update(T condtion) {
 		return getDao().updateByPrimaryKey(condtion);
+	}
+
+	@Override
+	@Transactional(rollbackFor = Exception.class)
+	public int updateWithVersion(T condtion) {
+		return getDao().updateByPrimaryKeyWithVersion(condtion);
 	}
 
 	@Override

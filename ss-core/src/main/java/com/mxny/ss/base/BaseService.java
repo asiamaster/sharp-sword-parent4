@@ -67,11 +67,25 @@ public interface BaseService<T,KEY extends Serializable> {
 	int update(T condtion);
 
 	/**
+	 * 乐观锁更新对象,条件主键Id
+	 * @param condtion
+	 * @return
+	 */
+	int updateWithVersion(T condtion);
+
+	/**
 	 * 更新对象,条件主键Id，忽略空字段
 	 * @param condtion 更新对象
 	 * @return 影响条数
 	 */
 	int updateSelective(T condtion);
+
+	/**
+	 * 乐观锁更新对象,条件主键Id，忽略空字段
+	 * @param condtion
+	 * @return
+	 */
+	int updateSelectiveWithVersion(T condtion);
 
 	/**
 	 * 用于支持@Like, @Operator和空值的条件更新
