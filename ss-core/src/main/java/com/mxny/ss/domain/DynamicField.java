@@ -44,6 +44,7 @@ public interface DynamicField extends IBaseDomain {
 
     /**
      * 字段名
+     * 用于查询别名和插入数据时获取字段名
      * @return
      */
     @Column(name="field_name")
@@ -59,15 +60,6 @@ public interface DynamicField extends IBaseDomain {
     String getColumnName();
 
     void setColumnName(String columnName);
-
-    /**
-     * 字段类全名
-     * @return
-     */
-    @Column(name="field_type")
-    String getFieldType();
-
-    void setFieldType(String fieldType);
 
     /**
      * 数据库类型

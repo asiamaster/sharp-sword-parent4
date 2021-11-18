@@ -54,6 +54,7 @@ public interface DynamicCondition extends IBaseDomain {
 
     /**
      * 字段类全名
+     * 或者简名，参考ClassCache
      * @return
      */
     @Column(name="field_type")
