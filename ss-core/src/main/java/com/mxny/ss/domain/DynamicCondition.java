@@ -80,7 +80,7 @@ public interface DynamicCondition extends IBaseDomain {
 
     /**
      * 条件类型.
-     * 1: 查询条件， 2: 查询后缀(支持interval, sliding和 fill)
+     * 1: 查询条件， 2: 查询后缀(支持interval, sliding和 fill)， 3:排序
      * @return
      */
     @Column(name="type")

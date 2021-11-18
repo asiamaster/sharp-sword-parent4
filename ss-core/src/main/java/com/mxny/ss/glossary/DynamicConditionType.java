@@ -5,7 +5,8 @@ package com.mxny.ss.glossary;
  */
 public enum DynamicConditionType {
     CONDITION(1,"查询条件"),
-    SUFFIX(2,"查询后缀");
+    SUFFIX(2,"查询后缀"),
+    SORT(3,"排序");
 
     private String name;
     private Integer code ;
@@ -17,8 +18,9 @@ public enum DynamicConditionType {
 
     public static DynamicConditionType getOnlineState(Integer code) {
         switch (code) {
-            case 0: return DynamicConditionType.CONDITION;
-            case 1: return DynamicConditionType.SUFFIX;
+            case 1: return DynamicConditionType.CONDITION;
+            case 2: return DynamicConditionType.SUFFIX;
+            case 3: return DynamicConditionType.SORT;
             default:  return null;
         }
     }
