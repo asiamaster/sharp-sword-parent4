@@ -576,7 +576,7 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
     protected void buildDynamicFieldsOrderByClause(List<DynamicCondition> dynamicConditions, Example example){
         StringBuilder orderByClauseBuilder = new StringBuilder();
         for (DynamicCondition entry : dynamicConditions) {
-            String orderBy = entry.getOrderBy();
+            String orderBy = entry.getOrderType();
             if(orderBy == null) {
                 continue;
             }

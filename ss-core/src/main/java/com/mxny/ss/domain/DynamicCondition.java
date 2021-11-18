@@ -110,9 +110,9 @@ public interface DynamicCondition extends IBaseDomain {
      * asc or desc
      * @return
      */
-    @Column(name="order_by")
-    String getOrderBy();
-    void setOrderBy(String orderBy);
+    @Column(name="order_type")
+    String getOrderType();
+    void setOrderType(String orderType);
 
     /**
      * 业务编码
