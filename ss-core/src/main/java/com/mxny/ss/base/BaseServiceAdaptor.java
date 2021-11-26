@@ -507,6 +507,11 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 				example.setResultType(resultType);
 			}
 		}
+		//解决使用@LogicDelete注解，没有任何条件时，最后多拼接一个and的问题
+		List<Example.Criteria> oredCriteria = example.getOredCriteria();
+		if (oredCriteria != null && oredCriteria.size() == 1 && oredCriteria.get(0).getCriteria().isEmpty()) {
+			oredCriteria.clear();
+		}
 		return example;
 	}
 
