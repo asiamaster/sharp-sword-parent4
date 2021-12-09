@@ -30,8 +30,8 @@ public interface SelectColumn extends IBaseDomain {
      * @return
      */
     @Column(name="index")
-    String getIndex();
-    void setIndex(String index);
+    Integer getIndex();
+    void setIndex(Integer index);
 
     /**
      * 表名
