@@ -99,9 +99,9 @@ public interface DynamicField extends IBaseDomain {
      * 排序号
      * @return
      */
-    @Column(name="`index`")
-    Integer getIndex();
-    void setIndex(Integer index);
+    @Column(name="`order_number`")
+    Integer getOrderNumber();
+    void setOrderNumber(Integer orderNumber);
 
     /**
      * 创建人id
