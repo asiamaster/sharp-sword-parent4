@@ -61,7 +61,7 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
     }
 
     /**
-     * 添加动态字段，并添加数据库列
+     * 添加动态字段
      * @param dynamicField
      * @return
      */
@@ -666,7 +666,8 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
                     if(dynamicField.getIsTag()){
                         continue;
                     }
-                    columnsSet.add(dynamicField.getColumnName() + " as " + dynamicField.getFieldName());
+//                    columnsSet.add(dynamicField.getColumnName() + " as " + dynamicField.getFieldName());
+                    columnsSet.add(dynamicField.getColumnName());
                 }
             }
         }

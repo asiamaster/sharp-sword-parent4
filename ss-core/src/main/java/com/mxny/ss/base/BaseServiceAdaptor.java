@@ -1291,8 +1291,12 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 	private Class<Object> getSuperClassGenricType(final Class clazz, final int index) {
 		//返回表示此 Class 所表示的实体（类、接口、基本类型或 void）的直接超类的 Type。
 		Type genType = clazz.getGenericSuperclass();
-		if (!(genType instanceof ParameterizedType)) {
-			return Object.class;
+		//向上级查找泛型的BaseServiceImpl或BaseServiceAdaptor类型
+		while (!(genType instanceof ParameterizedType) && genType instanceof Class) {
+			if (Object.class.equals(genType)) {
+				return Object.class;
+			}
+			genType = ((Class)genType).getGenericSuperclass();
 		}
 		//返回表示此类型实际类型参数的 Type 对象的数组。
 		Type[] params = ((ParameterizedType) genType).getActualTypeArguments();
