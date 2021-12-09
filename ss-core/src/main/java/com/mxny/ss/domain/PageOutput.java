@@ -43,6 +43,30 @@ public class PageOutput<T> extends BaseOutput<T> {
         super(code, result);
     }
 
+    public static <T> PageOutput<T> success() {
+        return PageOutput.success("OK");
+    }
+
+    public static <T> PageOutput<T> success(String msg) {
+        return PageOutput.create(ResultCode.OK, msg);
+    }
+
+    public static <T> PageOutput<T> successData(T data) {
+        return PageOutput.success().setData(data);
+    }
+
+    public static <T> PageOutput<T> failure() {
+        return PageOutput.failure("操作失败!");
+    }
+
+    public static <T> PageOutput<T> failure(String msg) {
+        return PageOutput.create(ResultCode.APP_ERROR, msg);
+    }
+
+    public static <T> PageOutput<T> failure(String code, String msg) {
+        return PageOutput.create(code, msg);
+    }
+
     @Override
     public T getData() {
         return super.getData();
@@ -116,22 +140,6 @@ public class PageOutput<T> extends BaseOutput<T> {
 
     public static <T> PageOutput<T> create(String code, String result) {
         return new PageOutput<T>(code, result);
-    }
-
-    public static <T> PageOutput<T> success() {
-        return success("OK");
-    }
-
-    public static <T> PageOutput<T> success(String msg) {
-        return create(ResultCode.OK, msg);
-    }
-
-    public static <T> PageOutput<T> failure() {
-        return failure("操作失败!");
-    }
-
-    public static <T> PageOutput<T> failure(String msg) {
-        return create(ResultCode.APP_ERROR, msg);
     }
 
     @Override

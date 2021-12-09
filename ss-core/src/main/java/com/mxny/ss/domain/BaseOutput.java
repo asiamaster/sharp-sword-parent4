@@ -81,7 +81,7 @@ public class BaseOutput<T> {
     }
 
     public static <T> BaseOutput<T> successData(T data) {
-        return success().setData(data);
+        return BaseOutput.success().setData(data);
     }
 
     public static <T> BaseOutput<T> create(String code, String result) {
@@ -89,23 +89,23 @@ public class BaseOutput<T> {
     }
 
     public static <T> BaseOutput<T> success() {
-        return success("OK");
+        return BaseOutput.success("OK");
     }
 
     public static <T> BaseOutput<T> success(String msg) {
-        return create(ResultCode.OK, msg);
+        return BaseOutput.create(ResultCode.OK, msg);
     }
 
     public static <T> BaseOutput<T> failure() {
-        return failure("操作失败!");
+        return BaseOutput.failure("操作失败!");
     }
 
     public static <T> BaseOutput<T> failure(String msg) {
-        return create(ResultCode.APP_ERROR, msg);
+        return BaseOutput.create(ResultCode.APP_ERROR, msg);
     }
 
     public static <T> BaseOutput<T> failure(String code, String msg) {
-        return create(code, msg);
+        return BaseOutput.create(code, msg);
     }
 
     public String getErrorData() {
