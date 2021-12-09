@@ -99,7 +99,7 @@ public interface DynamicField extends IBaseDomain {
      * 排序号
      * @return
      */
-    @Column(name="index")
+    @Column(name="`index`")
     Integer getIndex();
     void setIndex(Integer index);
 
