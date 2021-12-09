@@ -96,6 +96,14 @@ public interface DynamicField extends IBaseDomain {
     void setNotes(String notes);
 
     /**
+     * 排序号
+     * @return
+     */
+    @Column(name="index")
+    String getIndex();
+    void setIndex(String index);
+
+    /**
      * 创建人id
      * @return
      */

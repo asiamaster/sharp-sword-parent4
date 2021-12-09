@@ -26,6 +26,14 @@ public interface SelectColumn extends IBaseDomain {
     void setId(Long id);
 
     /**
+     * 排序号
+     * @return
+     */
+    @Column(name="index")
+    String getIndex();
+    void setIndex(String index);
+
+    /**
      * 表名
      * @return
      */
