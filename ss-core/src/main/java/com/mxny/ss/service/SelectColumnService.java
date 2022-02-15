@@ -5,6 +5,7 @@ import com.mxny.ss.dao.mapper.SelectColumnMapper;
 import com.mxny.ss.domain.SelectColumn;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.stereotype.Service;
 
 /**
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
  * This file was generated on 2021-08-17 15:33:45.
  */
 @Service
+@ConditionalOnClass(tk.mybatis.mapper.entity.Example.class)
 public class SelectColumnService extends BaseServiceImpl<SelectColumn, Long> {
     protected static final Logger LOGGER = LoggerFactory.getLogger(SelectColumnService.class);
 
