@@ -86,10 +86,10 @@
             <artifactId>ss-core</artifactId>
             <version>${project.parent.version}</version>
             <exclusions>
-                <exclusion>
-                    <groupId>tk.mybatis</groupId>
-                    <artifactId>mapper-spring-boot-starter</artifactId>
-                </exclusion>
+<!--                <exclusion>-->
+<!--                    <groupId>tk.mybatis</groupId>-->
+<!--                    <artifactId>mapper-spring-boot-starter</artifactId>-->
+<!--                </exclusion>-->
                 <exclusion>
                     <groupId>org.mybatis</groupId>
                     <artifactId>mybatis-typehandlers-jsr310</artifactId>
