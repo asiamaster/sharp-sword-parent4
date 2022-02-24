@@ -268,7 +268,7 @@ public class DefaultCommonSrvAcceptor extends DefaultSrvAcceptor {
             out.writeShort(MAGIC)
                     .writeByte(msg.sign())
                     .writeByte(0)
-                    .writeLong(0)
+                    .writeLong(0L)
                     .writeInt(bytes.length)
                     .writeBytes(bytes);
         }

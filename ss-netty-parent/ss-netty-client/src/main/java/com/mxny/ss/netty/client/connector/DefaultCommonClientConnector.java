@@ -80,6 +80,12 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
 		
 	}
 
+    /**
+     * 客户端连接入口方法
+     * @param port
+     * @param host
+     * @return
+     */
 	@Override
     public Channel connect(int port, String host) {
 		
@@ -92,7 +98,6 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
             public ChannelHandler[] handlers() {
                 return new ChannelHandler[] {
                 		//将自己[ConnectionWatchdog]装载到handler链中，当链路断掉之后，会触发ConnectionWatchdog #channelInActive方法
-                		
                         this,
                         //每隔30s的时间触发一次userEventTriggered的方法，并且指定IdleState的状态位是WRITER_IDLE
                         new IdleStateHandler(0, 30, 0, TimeUnit.SECONDS),
@@ -164,12 +169,12 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
     static class MessageEncoder extends MessageToByteEncoder<Message> {
 
         @Override
-        protected void encode(ChannelHandlerContext ctx, Message msg, ByteBuf out) throws Exception {
+        protected void encode(ChannelHandlerContext ctx, Message msg, ByteBuf out) {
             byte[] bytes = serializerImpl().writeObject(msg);
             out.writeShort(MAGIC)
                     .writeByte(msg.sign())
-                    .writeByte(0)
-                    .writeLong(0)
+                    .writeByte(0)  // status
+                    .writeLong(0L) // Invoke id， 用于Acknowledge的sequence
                     .writeInt(bytes.length)
                     .writeBytes(bytes);
         }
@@ -197,7 +202,7 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
                     in.readByte();                          // no-op
                     checkpoint(State.HEADER_ID);
                 case HEADER_ID:
-                    header.id(in.readLong());               // 消息id
+                    header. id(in.readLong());               // 消息id
                     checkpoint(State.HEADER_BODY_LENGTH);
                 case HEADER_BODY_LENGTH:
                     header.bodyLength(in.readInt());        // 消息体长度
