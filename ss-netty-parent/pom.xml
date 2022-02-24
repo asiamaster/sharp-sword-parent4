@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+		 xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>com.mxny</groupId>
+	<artifactId>ss-netty-parent</artifactId>
+	<name>ss-netty-parent</name>
+	<version>4.2.0-SNAPSHOT</version>
+	<description>Netty父项目</description>
+	<packaging>pom</packaging>
+
+	<!-- 父工程定义 -->
+	<parent>
+		<artifactId>sharp-sword-parent</artifactId>
+		<groupId>com.mxny</groupId>
+		<version>4.2.0-SNAPSHOT</version>
+	</parent>
+
+	<modules>
+		<module>ss-netty-commons</module>
+		<module>ss-netty-server</module>
+		<module>ss-netty-client</module>
+	</modules>
+
+	<properties>
+		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+		<java.version>11</java.version>
+		<!-- MyBatis Generator -->
+		<!-- Java接口和实体类 -->
+		<targetJavaProject>${basedir}/src/main/java</targetJavaProject>
+		<templateRootDir>${basedir}/mbg-templates</templateRootDir>
+		<projectdir>${basedir}</projectdir>
+		<maven.source.version>3.0.1</maven.source.version>
+		<!-- XML生成路径 -->
+		<targetResourcesProject>${basedir}/src/main/resources</targetResourcesProject>
+		<targetXMLPackage>mapper</targetXMLPackage>
+
+	</properties>
+
+
+</project>

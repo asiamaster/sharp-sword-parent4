@@ -486,6 +486,8 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 		if(null == domain) {
 			domain = getDefaultBean (tClazz);
 		}
+		//SQL注入拦截
+		checkDomainXss(domain);
 		ExampleExpand example = createExample(domain, tClazz);
 		//接口只取getter方法
 		if(tClazz.isInterface()) {
@@ -744,6 +746,36 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
         }
         setOrderBy(domain, example);
     }
+
+	/**
+	 * SQL注入拦截
+	 * @param domain
+	 * @return
+	 */
+	protected void checkDomainXss(T domain){
+		if (domain == null) {
+			return;
+		}
+		if (domain instanceof IBaseDomain) {
+			IBaseDomain iBaseDomain = (IBaseDomain) domain;
+			if (!checkXss(iBaseDomain.getSort())) {
+				throw new ParamErrorException("SQL注入拦截:"+iBaseDomain.getSort());
+			}
+			if (!checkXss(iBaseDomain.getOrder())) {
+				throw new ParamErrorException("SQL注入拦截:"+iBaseDomain.getOrder());
+			}
+			if (domain instanceof IMybatisForceParams) {
+				IMybatisForceParams mybatisForceParams = (IMybatisForceParams) domain;
+				if (mybatisForceParams.getSelectColumns() != null) {
+					for (String selectColumn : mybatisForceParams.getSelectColumns()) {
+						if (!checkXss(selectColumn)) {
+							throw new ParamErrorException("SQL注入拦截:"+selectColumn);
+						}
+					}
+				}
+			}
+		}
+	}
 
 	private static final String sqlReg = "(?:')|(?:--)|(/\\*(?:.|[\\n\\r])*?\\*/)|"+ "(\\b(select|update|and|or|delete|insert|trancate|char|into|substr|ascii|declare|exec|count|master|into|drop|execute)\\b)";
 	private static Pattern sqlPattern = Pattern.compile(sqlReg, Pattern.CASE_INSENSITIVE);
