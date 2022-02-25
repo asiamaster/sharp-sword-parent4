@@ -44,9 +44,7 @@ public abstract class ConnectionWatchdog extends ChannelInboundHandlerAdapter im
     public void channelActive(ChannelHandlerContext ctx) throws Exception {
         Channel channel = ctx.channel();
         attempts = 0;
-
         logger.info("Connects with {}.", channel);
-
         ctx.fireChannelActive();
     }
 
@@ -63,15 +61,12 @@ public abstract class ConnectionWatchdog extends ChannelInboundHandlerAdapter im
             long timeout = 2 << attempts;
             timer.newTimeout(this, timeout, MILLISECONDS);
         }
-
         logger.warn("Disconnects with {}, port: {},host {}, reconnect: {}.", ctx.channel(), port,host, doReconnect);
-
         ctx.fireChannelInactive();
     }
 
     @Override
     public void run(Timeout timeout) throws Exception {
-
         ChannelFuture future;
         synchronized (bootstrap) {
             bootstrap.handler(new ChannelInitializer<Channel>() {
@@ -83,15 +78,11 @@ public abstract class ConnectionWatchdog extends ChannelInboundHandlerAdapter im
             });
             future = bootstrap.connect(host,port);
         }
-
         future.addListener(new ChannelFutureListener() {
-
             @Override
             public void operationComplete(ChannelFuture f) throws Exception {
                 boolean succeed = f.isSuccess();
-
                 logger.warn("Reconnects with {}, {}.", host+":"+port, succeed ? "succeed" : "failed");
-
                 if (!succeed) {
                     f.channel().pipeline().fireChannelInactive();
                 }

@@ -5,14 +5,16 @@ package com.mxny.ss.netty.commons;
  *
  */
 public class Acknowledge {
-
+    //命令类型，登录，登出，消息
+    public byte cmd;
     public Acknowledge() {}
 
-    public Acknowledge(long sequence) {
+    public Acknowledge(long sequence, byte cmd) {
         this.sequence = sequence;
+        this.cmd = cmd;
     }
-
-    private long sequence; // ACK序号
+    // ACK序号
+    private long sequence;
 
     public long sequence() {
         return sequence;

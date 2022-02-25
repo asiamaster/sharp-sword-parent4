@@ -1,8 +1,12 @@
 package com.mxny.ss.netty.client.connector;
 
+import com.mxny.ss.netty.client.cache.ClientCache;
+import com.mxny.ss.netty.client.consts.ClientConsts;
+import com.mxny.ss.netty.client.dto.MessageNonAck;
 import com.mxny.ss.netty.commons.*;
 import com.mxny.ss.netty.commons.channelhandler.AcknowledgeEncoder;
 import com.mxny.ss.netty.commons.exception.ConnectFailedException;
+import com.mxny.ss.util.SpringUtil;
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
@@ -17,8 +21,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.List;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -46,8 +48,6 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
     //ack
     private final AcknowledgeEncoder ackEncoder = new AcknowledgeEncoder();
     
-    private final ConcurrentMap<Long, MessageNonAck> messagesNonAcks = new ConcurrentHashMap<Long, MessageNonAck>();
-	
 	protected final HashedWheelTimer timer = new HashedWheelTimer(new ThreadFactory() {
 		
 		private AtomicInteger threadIndex = new AtomicInteger(0);
@@ -73,11 +73,9 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
 		.option(ChannelOption.SO_REUSEADDR, true)
 		.option(ChannelOption.CONNECT_TIMEOUT_MILLIS, (int) SECONDS.toMillis(3))
 		.channel(NioSocketChannel.class);
-
 		bootstrap().option(ChannelOption.SO_KEEPALIVE, true)
 		.option(ChannelOption.TCP_NODELAY, true)
 		.option(ChannelOption.ALLOW_HALF_CLOSURE, false);
-		
 	}
 
     /**
@@ -86,9 +84,18 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
      * @param host
      * @return
      */
-	@Override
+    @Override
     public Channel connect(int port, String host) {
-		
+        return connect(port, host, true);
+    }
+    /**
+     * 客户端连接入口方法
+     * @param port
+     * @param host
+     * @return
+     */
+	@Override
+    public Channel connect(int port, String host, boolean reconnect) {
 		final Bootstrap boot = bootstrap();
 		
         // 重连watchdog
@@ -96,21 +103,25 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
 
             @Override
             public ChannelHandler[] handlers() {
-                return new ChannelHandler[] {
-                		//将自己[ConnectionWatchdog]装载到handler链中，当链路断掉之后，会触发ConnectionWatchdog #channelInActive方法
-                        this,
-                        //每隔30s的时间触发一次userEventTriggered的方法，并且指定IdleState的状态位是WRITER_IDLE
-                        new IdleStateHandler(0, 30, 0, TimeUnit.SECONDS),
-                        //实现userEventTriggered方法，并在state是WRITER_IDLE的时候发送一个心跳包到sever端，告诉server端我还活着
-                        idleStateTrigger,
-                        new MessageDecoder(),
-                        encoder,
-                        ackEncoder,
-                        handler
-                };
+                try {
+                    return new ChannelHandler[] {
+                            //将自己[ConnectionWatchdog]装载到handler链中，当链路断掉之后，会触发ConnectionWatchdog #channelInActive方法
+                            this,
+                            //每隔30s的时间触发一次userEventTriggered的方法，并且指定IdleState的状态位是WRITER_IDLE
+                            new IdleStateHandler(0, 30, 0, TimeUnit.SECONDS),
+                            //实现userEventTriggered方法，并在state是WRITER_IDLE的时候发送一个心跳包到sever端，告诉server端我还活着
+                            idleStateTrigger,
+                            new MessageDecoder(),
+                            encoder,
+                            ackEncoder,
+                            getHandler()
+                    };
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    return null;
+                }
             }};
-        watchdog.setReconnect(true);
-
+        watchdog.setReconnect(reconnect);
         try {
             ChannelFuture future;
             synchronized (bootstrapLock()) {
@@ -121,7 +132,6 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
                         ch.pipeline().addLast(watchdog.handlers());
                     }
                 });
-
                 future = boot.connect("127.0.0.1", 20011);
             }
             future.sync();
@@ -131,15 +141,18 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
         }
 		return channel;
 	}
-	
+
+    /**
+     * 演示的消息处理器
+     */
 	@ChannelHandler.Sharable
     class MessageHandler extends ChannelInboundHandlerAdapter {
 		
 		@Override
-		public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
+		public void channelRead(ChannelHandlerContext ctx, Object msg) {
 			if(msg instanceof Acknowledge){
 				logger.info("收到server端的Ack信息，无需再次发送信息, sequence:{}", ((Acknowledge)msg).sequence());
-				messagesNonAcks.remove(((Acknowledge)msg).sequence());
+				ClientCache.messagesNonAcks.remove(((Acknowledge)msg).sequence());
 			}else{
                 System.out.println("客户端收到消息:"+ msg);
             }
@@ -210,9 +223,7 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
                 case BODY:
                     switch (header.sign()) {
                     	case RESPONSE:
-                        case SERVICE_1:
-                        case SERVICE_2:
-                        case SERVICE_3: {
+                        case REQUEST:{
                             byte[] bytes = new byte[header.bodyLength()];
                             in.readBytes(bytes);
                             Message msg = serializerImpl().readObject(bytes, Message.class);
@@ -255,22 +266,6 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
 		return NativeSupport.isSupportNativeET() ? new EpollEventLoopGroup(nWorkers, workerFactory) : new NioEventLoopGroup(nWorkers, workerFactory);
 	}
 
-    /**
-     * 客户端未收到服务端回复Acknowledge时的重试发送对象
-     */
-	public static class MessageNonAck {
-        private final long id;
-        private final Message msg;
-        private final Channel channel;
-        private final long timestamp = System.currentTimeMillis();
-
-        public MessageNonAck(Message msg, Channel channel) {
-            this.msg = msg;
-            this.channel = channel;
-            id = msg.sequence();
-        }
-    }
-
 
     /**
      * 随DefaultCommonClientConnector初始化后启动
@@ -282,21 +277,21 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
         public void run() {
             for (;;) {
                 try {
-                    for (MessageNonAck m : messagesNonAcks.values()) {
+                    for (MessageNonAck m : ClientCache.messagesNonAcks.values()) {
                         //十秒钟没有发出去， 判断是否已经发送，如果没有发送，则根据id移除messagesNonAcks中的缓存
                         // 判断连接是否有效，有效，则重新构建MessageNonAck并发送
-                        if (System.currentTimeMillis() - m.timestamp > SECONDS.toMillis(10)) {
+                        if (System.currentTimeMillis() - m.getTimestamp() > SECONDS.toMillis(10)) {
 
                             // 移除
-                            if (messagesNonAcks.remove(m.id) == null) {
+                            if (ClientCache.messagesNonAcks.remove(m.getId()) == null) {
                                 continue;
                             }
 
-                            if (m.channel.isActive()) {
+                            if (m.getChannel().isActive()) {
                             	logger.warn("准备重新发送信息");
-                                MessageNonAck msgNonAck = new MessageNonAck(m.msg, m.channel);
-                                messagesNonAcks.put(msgNonAck.id, msgNonAck);
-                                m.channel.writeAndFlush(m.msg)
+                                MessageNonAck msgNonAck = new MessageNonAck(m.getMsg(), m.getChannel());
+                                ClientCache.messagesNonAcks.put(msgNonAck.getId(), msgNonAck);
+                                m.getChannel().writeAndFlush(m.getMsg())
                                         .addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
                             }
                         }
@@ -316,10 +311,41 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
         t.start();
     }
 
-
+    /**
+     * 添加MessageNonAck到缓存
+     * @param msgNonAck
+     */
 	public void addNeedAckMessageInfo(MessageNonAck msgNonAck) {
-		 messagesNonAcks.put(msgNonAck.id, msgNonAck);
+		 ClientCache.messagesNonAcks.put(msgNonAck.getId(), msgNonAck);
 	}
-	
+
+    /**
+     * 获取消息处理器
+     * @return
+     * @throws ClassNotFoundException
+     * @throws InstantiationException
+     * @throws IllegalAccessException
+     */
+    protected ChannelInboundHandlerAdapter getHandler() throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+        String serverHandler = SpringUtil.getProperty(ClientConsts.CLIENT_HANDLER, MessageHandler.class.getName());
+        return createInstance(ChannelInboundHandlerAdapter.class, serverHandler);
+    }
+
+    /**
+     * 传递一个类的全新类名来创建对象
+     * @param checkType
+     * @param className
+     * @param <T>
+     * @return
+     */
+    private static  <T> T createInstance(Class<T> checkType,String className) throws InstantiationException, IllegalAccessException, ClassNotFoundException {
+        Class<T> clz = (Class<T>)Class.forName(className);
+        Object obj = clz.newInstance();
+        //需要检查checkType是不是obj的字节码对象
+        if (!checkType.isInstance(obj)) {
+            throw new ClassCastException("对象跟字节码不兼容");
+        }
+        return (T)obj;
+    }
 
 }

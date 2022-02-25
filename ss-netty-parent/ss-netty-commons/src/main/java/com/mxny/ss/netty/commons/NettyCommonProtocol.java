@@ -24,8 +24,13 @@ public class NettyCommonProtocol {
      * + 8 // 消息 id long 类型
      * + 4 // 消息体body长度, int类型
      */
+    //  -------------------  status常量st  --------------------
 
-	/** 协议头长度 */
+
+    //  -------------------  status常量end --------------------
+
+    //  -------------------  消息体常量st  ---------------------
+	/** 心跳协议头长度 */
     public static final int HEAD_LENGTH = 16;
     /** Acknowledge */
     public static final byte ACK = 126;
@@ -35,10 +40,9 @@ public class NettyCommonProtocol {
     public static final byte REQUEST = 1;
     /** Response */
     public static final byte RESPONSE = 2;
-    public static final byte SERVICE_1 = 3;
-    public static final byte SERVICE_2 = 4;
-    public static final byte SERVICE_3 = 5;
-    public static final byte SERVICE_4 = 6;
+    public static final byte LOGIN = 3;
+    public static final byte LOGOUT = 4;
+    //  -------------------  消息体常量end ---------------------
 
     /** Magic */
     public static final short MAGIC = (short) 0xbcbe;

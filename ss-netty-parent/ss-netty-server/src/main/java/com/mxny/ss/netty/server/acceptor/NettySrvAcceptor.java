@@ -60,9 +60,7 @@ public abstract class NettySrvAcceptor implements SrvAcceptor {
     protected void init(){
     	ThreadFactory bossFactory = new DefaultThreadFactory("netty.acceptor.boss");
         ThreadFactory workerFactory = new DefaultThreadFactory("netty.acceptor.worker");
-        
         boss = initEventLoopGroup(1, bossFactory);
-        
         worker = initEventLoopGroup(nWorkers, workerFactory);
         //使用池化的directBuffer
         /**

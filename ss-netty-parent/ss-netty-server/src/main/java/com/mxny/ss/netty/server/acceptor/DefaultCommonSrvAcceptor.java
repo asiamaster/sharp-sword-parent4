@@ -1,6 +1,9 @@
 package com.mxny.ss.netty.server.acceptor;
 
 import com.mxny.ss.netty.commons.*;
+import com.mxny.ss.netty.server.cache.ServerCache;
+import com.mxny.ss.netty.server.consts.ServerConsts;
+import com.mxny.ss.util.SpringUtil;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
@@ -43,10 +46,10 @@ public class DefaultCommonSrvAcceptor extends DefaultSrvAcceptor {
 	//Ack的编码器
 	private final AcknowledgeEncoder ackEncoder = new AcknowledgeEncoder();
 
-	/**
-	 * SimpleChannelInboundHandler类型的handler只处理@{link Message}类型的数据
-	 */
-	private final MessageHandler handler = new MessageHandler();
+//	/**
+//	 * SimpleChannelInboundHandler类型的handler只处理@{link Message}类型的数据
+//	 */
+//	private final MessageHandler handler = new MessageHandler();
 	
 	private final ChannelEventListener channelEventListener;
 
@@ -54,6 +57,7 @@ public class DefaultCommonSrvAcceptor extends DefaultSrvAcceptor {
 		super(new InetSocketAddress(port));
 		this.init();
 		this.channelEventListener = channelEventListener;
+		nettyEventExecuter.start();
 	}
 	
 	@Override
@@ -129,7 +133,6 @@ public class DefaultCommonSrvAcceptor extends DefaultSrvAcceptor {
 	@Override
 	protected ChannelFuture bind(SocketAddress localAddress) {
 		ServerBootstrap boot = bootstrap();
-		
 		boot.channel(NioServerSocketChannel.class)
         .childHandler(new ChannelInitializer<SocketChannel>() {
 
@@ -140,16 +143,44 @@ public class DefaultCommonSrvAcceptor extends DefaultSrvAcceptor {
                 		new IdleStateHandler(60, 0, 0, TimeUnit.SECONDS),
                 		//因为我们在client端设置了每隔30s会发送一个心跳包过来，如果60s都没有收到心跳，则说明链路发生了问题
                         idleStateTrigger,
+						new NettyConnectManageHandler(),
                         //message的解码器
                         new MessageDecoder(),
                         encoder,
                         ackEncoder,
-                        new NettyConnectManageHandler(),
-                        handler);
+						getHandler());
             }
         });
-		
 		return boot.bind(localAddress);
+	}
+
+	/**
+	 * 获取消息处理器
+	 * @return
+	 * @throws ClassNotFoundException
+	 * @throws InstantiationException
+	 * @throws IllegalAccessException
+	 */
+	protected ChannelInboundHandlerAdapter getHandler() throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+		String serverHandler = SpringUtil.getProperty(ServerConsts.SERVER_HANDLER, MessageHandler.class.getName());
+		return createInstance(ChannelInboundHandlerAdapter.class, serverHandler);
+	}
+
+	/**
+	 * 传递一个类的全新类名来创建对象
+	 * @param checkType
+	 * @param className
+	 * @param <T>
+	 * @return
+	 */
+	private static  <T> T createInstance(Class<T> checkType,String className) throws InstantiationException, IllegalAccessException, ClassNotFoundException {
+		Class<T> clz = (Class<T>)Class.forName(className);
+		Object obj = clz.newInstance();
+		//需要检查checkType是不是obj的字节码对象
+		if (!checkType.isInstance(obj)) {
+			throw new ClassCastException("对象跟字节码不兼容");
+		}
+		return (T)obj;
 	}
 	
 	/**
@@ -207,11 +238,10 @@ public class DefaultCommonSrvAcceptor extends DefaultSrvAcceptor {
                     switch (header.sign()) {
                         case HEARTBEAT:
                             break;
+						case RESPONSE:
                         case REQUEST:
-                        case SERVICE_1:
-                        case SERVICE_2:
-                        case SERVICE_3:
-                        case SERVICE_4: {
+						case LOGIN:
+						case LOGOUT:{
                             byte[] bytes = new byte[header.bodyLength()];
                             in.readBytes(bytes);
                             Message msg = serializerImpl().readObject(bytes, Message.class);
@@ -219,6 +249,13 @@ public class DefaultCommonSrvAcceptor extends DefaultSrvAcceptor {
                             out.add(msg);
                             break;
                         }
+                        case ACK: {
+							byte[] bytes = new byte[header.bodyLength()];
+							in.readBytes(bytes);
+							Acknowledge ack = serializerImpl().readObject(bytes, Acknowledge.class);
+							out.add(ack);
+							break;
+						}
                         default:
                             throw new IllegalAccessException();
                     }
@@ -263,7 +300,7 @@ public class DefaultCommonSrvAcceptor extends DefaultSrvAcceptor {
     static class MessageEncoder extends MessageToByteEncoder<Message> {
 
         @Override
-        protected void encode(ChannelHandlerContext ctx, Message msg, ByteBuf out) throws Exception {
+        protected void encode(ChannelHandlerContext ctx, Message msg, ByteBuf out) {
             byte[] bytes = serializerImpl().writeObject(msg);
             out.writeShort(MAGIC)
                     .writeByte(msg.sign())
@@ -273,47 +310,163 @@ public class DefaultCommonSrvAcceptor extends DefaultSrvAcceptor {
                     .writeBytes(bytes);
         }
     }
-    
+
+	/**
+	 * 服务端消息处理示例
+	 */
     @ChannelHandler.Sharable
     class MessageHandler extends SimpleChannelInboundHandler<Message> {
-    	
 		@Override
-		protected void channelRead0(ChannelHandlerContext ctx, Message message) throws Exception {
+		protected void channelRead0(ChannelHandlerContext ctx, Message message) {
 			Channel channel = ctx.channel();
+			Object data = message.data();
 			logger.info("服务端收到消息:"+message.toString());
-    		// 接收到发布信息的时候，要给Client端回复ACK
-			channel.writeAndFlush(new Acknowledge(message.sequence())).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+			//终端登录
+			if (message.sign() == LOGIN) {
+				String terminalId = data.toString();
+				ServerCache.TERMINAL_CHANNEL_MAP.put(terminalId, channel);
+				ServerCache.CHANNELID_TERMINAL_MAP.put(channel.id(), terminalId);
+				// 接收到发布信息的时候，要给Client端回复登录完成的ACK
+				channel.writeAndFlush(new Acknowledge(message.sequence(), LOGIN)).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+			}else if(message.sign() == LOGOUT) {
+				String terminalId = data.toString();
+				if(ServerCache.TERMINAL_CHANNEL_MAP.containsKey(terminalId)){
+					ServerCache.TERMINAL_CHANNEL_MAP.remove(terminalId);
+				}
+				if(ServerCache.CHANNELID_TERMINAL_MAP.containsKey(channel.id())){
+					ServerCache.CHANNELID_TERMINAL_MAP.remove(channel.id());
+				}
+				// 接收到发布信息的时候，要给Client端回复登录完成的ACK
+				channel.writeAndFlush(new Acknowledge(message.sequence(), LOGOUT)).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+			}else {
+				// 接收到发布信息的时候，要给Client端回复正常响应的ACK
+				channel.writeAndFlush(new Acknowledge(message.sequence(), RESPONSE)).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+			}
 		}
     }
-    
-    class NettyConnectManageHandler extends ChannelDuplexHandler {
-    	
+
+//	/**
+//	 * 服务端消息处理，任意类型
+//	 */
+//	@ChannelHandler.Sharable
+//	class MessageHandler extends ChannelInboundHandlerAdapter {
+//		@Override
+//		public void channelRead(ChannelHandlerContext ctx, Object msg) {
+//			Channel channel = ctx.channel();
+//			if(msg instanceof Message){
+//				System.out.println("服务端收到消息:"+ msg);
+//				// 接收到发布信息的时候，要给Client端回复ACK
+//				channel.writeAndFlush(new Acknowledge(((Message)msg).sequence())).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+//			}
+//		}
+//	}
+
+	/**
+	 * 服务端消息处理
+	 */
+	class NettyConnectManageHandler extends ChannelDuplexHandler {
+
+		@Override
+		public void channelActive(ChannelHandlerContext ctx) throws Exception {
+			final String local = localAddress == null ? "UNKNOW" : localAddress.toString();
+			SocketAddress remoteAddress = ctx.channel().remoteAddress();
+			final String remote = remoteAddress == null ? "UNKNOW" : remoteAddress.toString();
+			logger.info("NETTY CLIENT PIPELINE: channelActive  {} => {}", local, remote);
+			super.channelActive(ctx);
+			if (DefaultCommonSrvAcceptor.this.channelEventListener != null) {
+				DefaultCommonSrvAcceptor.this.putNettyEvent(new NettyEvent(NettyEventType.CONNECT, remoteAddress
+						.toString(), ctx.channel()));
+			}
+		}
+
+		@Override
+		public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+			super.channelInactive(ctx);
+			final String remoteAddress = ctx.channel().remoteAddress().toString();
+			logger.info("NETTY CLIENT PIPELINE: channelInactive {}", remoteAddress);
+			ChannelId id = ctx.channel().id();
+			if (ServerCache.CHANNELID_TERMINAL_MAP.containsKey(id)) {
+				String terminalId = ServerCache.CHANNELID_TERMINAL_MAP.get(id);
+				ServerCache.CHANNELID_TERMINAL_MAP.remove(id);
+				if (ServerCache.TERMINAL_CHANNEL_MAP.containsKey(terminalId)) {
+					ServerCache.TERMINAL_CHANNEL_MAP.remove(terminalId);
+				}
+			}
+			if (DefaultCommonSrvAcceptor.this.channelEventListener != null) {
+				DefaultCommonSrvAcceptor.this.putNettyEvent(new NettyEvent(NettyEventType.CLOSE, remoteAddress
+						.toString(), ctx.channel()));
+			}
+		}
+
+		/**
+		 * 调用 ChannelHandlerContext.bind(SocketAddress, ChannelPromise) 方法
+		 * 以转发到 ChannelPipeline 中的下一个 ChannelOutboundHandler。
+		 * @param ctx
+		 * @param localAddress
+		 * @param promise
+		 * @throws Exception
+		 */
+		@Override
+		public void bind(ChannelHandlerContext ctx, SocketAddress localAddress, ChannelPromise promise) throws Exception {
+			super.bind(ctx, localAddress, promise);
+		}
+
+		/**
+		 * 调用 ChannelHandlerContext.connect(SocketAddress, SocketAddress, ChannelPromise) 方法
+		 * 以转发到 ChannelPipeline 中的下一个 ChannelOutboundHandler。
+		 *
+		 * @param ctx
+		 * @param remoteAddress
+		 * @param localAddress
+		 * @param future
+		 * @throws Exception
+		 */
     	@Override
     	public void connect(ChannelHandlerContext ctx, SocketAddress remoteAddress, SocketAddress localAddress, ChannelPromise future) throws Exception {
     		final String local = localAddress == null ? "UNKNOW" : localAddress.toString();
             final String remote = remoteAddress == null ? "UNKNOW" : remoteAddress.toString();
             logger.info("NETTY CLIENT PIPELINE: CONNECT  {} => {}", local, remote);
     		super.connect(ctx, remoteAddress, localAddress, future);
-    		
     		if (DefaultCommonSrvAcceptor.this.channelEventListener != null) {
     			DefaultCommonSrvAcceptor.this.putNettyEvent(new NettyEvent(NettyEventType.CONNECT, remoteAddress
                     .toString(), ctx.channel()));
             }
     	}
-    	
-    	@Override
+
+		/**
+		 * 调用 ChannelHandlerContext.disconnect(ChannelPromise) 方法
+		 * 以转发到 ChannelPipeline 中的下一个 ChannelOutboundHandler。
+		 *
+		 * @param ctx
+		 * @param future
+		 * @throws Exception
+		 */
+		@Override
     	public void disconnect(ChannelHandlerContext ctx, ChannelPromise future) throws Exception {
     		final String remoteAddress = ctx.channel().remoteAddress().toString();
             logger.info("NETTY CLIENT PIPELINE: DISCONNECT {}", remoteAddress);
+			ChannelId id = ctx.channel().id();
+			if (ServerCache.CHANNELID_TERMINAL_MAP.containsKey(id)) {
+				String terminalId = ServerCache.CHANNELID_TERMINAL_MAP.get(id);
+				ServerCache.CHANNELID_TERMINAL_MAP.remove(id);
+				if (ServerCache.TERMINAL_CHANNEL_MAP.containsKey(terminalId)) {
+					ServerCache.TERMINAL_CHANNEL_MAP.remove(terminalId);
+				}
+			}
             super.disconnect(ctx, future);
-
             if (DefaultCommonSrvAcceptor.this.channelEventListener != null) {
             	DefaultCommonSrvAcceptor.this.putNettyEvent(new NettyEvent(NettyEventType.CLOSE, remoteAddress
                     .toString(), ctx.channel()));
             }
     	}
-    	
-    	@Override
+
+		/**
+		 * 请求关闭通道，并在操作完成后通知 ChannelPromise
+		 * @param ctx
+		 * @param promise
+		 * @throws Exception
+		 */
+		@Override
         public void close(ChannelHandlerContext ctx, ChannelPromise promise) throws Exception {
             final String remoteAddress = ctx.channel().remoteAddress().toString();
             logger.info("NETTY CLIENT PIPELINE: CLOSE {}", remoteAddress);
@@ -325,9 +478,8 @@ public class DefaultCommonSrvAcceptor extends DefaultSrvAcceptor {
             }
         }
 
-
-        @Override
-        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) throws Exception {
+		@Override
+        public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
             final String remoteAddress = ctx.channel().remoteAddress().toString();
             logger.warn("NETTY CLIENT PIPELINE: exceptionCaught {}", remoteAddress);
             logger.warn("NETTY CLIENT PIPELINE: exceptionCaught exception.", cause);
