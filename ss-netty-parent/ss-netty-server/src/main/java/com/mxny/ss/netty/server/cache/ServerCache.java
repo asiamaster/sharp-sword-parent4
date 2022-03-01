@@ -14,12 +14,14 @@ public class ServerCache {
     /**
      * 保存终端号和ChannelId的关系，设备上线时赋值
      * 用于Server向终端直接下发命令(一般是心跳命令和直接回复命令)
+     * 客户端断开时清空
      */
     public static Map<String, Channel> TERMINAL_CHANNEL_MAP = new ConcurrentHashMap<>();
 
     /**
      * 保存ChannelId和终端号的关系，设备上线时赋值
-     * 在设备第一次连接时更新，用于终端断开时，更新redis
+     * 在客户端第一次连接时更新
+     * 客户端断开时清空
      */
     public static final ConcurrentHashMap<ChannelId, String> CHANNELID_TERMINAL_MAP = new ConcurrentHashMap<>();
 

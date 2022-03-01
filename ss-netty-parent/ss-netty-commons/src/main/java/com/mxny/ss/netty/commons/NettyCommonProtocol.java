@@ -18,7 +18,7 @@ public class NettyCommonProtocol {
      *  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
      *
      * 消息头16个字节定长
-     * = 2 // MAGIC = (short) 0xbabe
+     * = 2 // MAGIC = (short) 0xbcae
      * + 1 // 消息标志位, 用来表示消息类型
      * + 1 // 空
      * + 8 // 消息 id long 类型
@@ -45,7 +45,7 @@ public class NettyCommonProtocol {
     //  -------------------  消息体常量end ---------------------
 
     /** Magic */
-    public static final short MAGIC = (short) 0xbcbe;
+    public static final short MAGIC = (short) 0xbcae;
     private byte sign;
     private byte status;
     private long id;
