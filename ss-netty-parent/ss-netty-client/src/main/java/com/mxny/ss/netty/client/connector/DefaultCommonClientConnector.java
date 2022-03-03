@@ -3,30 +3,30 @@ package com.mxny.ss.netty.client.connector;
 import com.mxny.ss.netty.client.cache.ClientCache;
 import com.mxny.ss.netty.client.consts.ClientConsts;
 import com.mxny.ss.netty.client.dto.MessageNonAck;
-import com.mxny.ss.netty.commons.*;
+import com.mxny.ss.netty.commons.Acknowledge;
+import com.mxny.ss.netty.commons.ConnectionWatchdog;
+import com.mxny.ss.netty.commons.NativeSupport;
 import com.mxny.ss.netty.commons.channelhandler.AcknowledgeEncoder;
+import com.mxny.ss.netty.commons.channelhandler.MessageDecoder;
+import com.mxny.ss.netty.commons.channelhandler.MessageEncoder;
 import com.mxny.ss.netty.commons.exception.ConnectFailedException;
 import com.mxny.ss.util.SpringUtil;
 import io.netty.bootstrap.Bootstrap;
-import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioSocketChannel;
-import io.netty.handler.codec.MessageToByteEncoder;
-import io.netty.handler.codec.ReplayingDecoder;
 import io.netty.handler.timeout.IdleStateHandler;
 import io.netty.util.HashedWheelTimer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static com.mxny.ss.netty.commons.NettyCommonProtocol.*;
-import static com.mxny.ss.netty.commons.serializer.SerializerHolder.serializerImpl;
 import static java.util.concurrent.TimeUnit.SECONDS;
 
 /**
@@ -42,11 +42,11 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
 	private volatile Channel channel;
 	
 	//信息处理的handler
-	private final MessageHandler handler = new MessageHandler();
-	//编码
-    private final MessageEncoder encoder = new MessageEncoder();
-    //ack
-    private final AcknowledgeEncoder ackEncoder = new AcknowledgeEncoder();
+//	private final MessageHandler handler = new MessageHandler();
+//	//编码
+//    private final MessageEncoder encoder = new MessageEncoder();
+//    //ack
+//    private final AcknowledgeEncoder ackEncoder = new AcknowledgeEncoder();
     
 	protected final HashedWheelTimer timer = new HashedWheelTimer(new ThreadFactory() {
 		
@@ -104,18 +104,29 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
             @Override
             public ChannelHandler[] handlers() {
                 try {
-                    return new ChannelHandler[] {
-                            //将自己[ConnectionWatchdog]装载到handler链中，当链路断掉之后，会触发ConnectionWatchdog #channelInActive方法
-                            this,
-                            //每隔30s的时间触发一次userEventTriggered的方法，并且指定IdleState的状态位是WRITER_IDLE
-                            new IdleStateHandler(0, 30, 0, TimeUnit.SECONDS),
-                            //实现userEventTriggered方法，并在state是WRITER_IDLE的时候发送一个心跳包到sever端，告诉server端我还活着
-                            idleStateTrigger,
-                            new MessageDecoder(),
-                            encoder,
-                            ackEncoder,
-                            getHandler()
-                    };
+                    List<ChannelHandler> channelHandlers = new ArrayList<>();
+                    //将自己[ConnectionWatchdog]装载到handler链中，当链路断掉之后，会触发ConnectionWatchdog #channelInActive方法
+                    channelHandlers.add(this);
+                    //每隔30s的时间触发一次userEventTriggered的方法，并且指定IdleState的状态位是WRITER_IDLE
+                    channelHandlers.add(new IdleStateHandler(0, 30, 0, TimeUnit.SECONDS));
+                    //实现userEventTriggered方法，并在state是WRITER_IDLE的时候发送一个心跳包到sever端，告诉server端我还活着
+                    channelHandlers.add(idleStateTrigger);
+                    channelHandlers.addAll(getDecoders());
+                    channelHandlers.addAll(getEncoders());
+                    channelHandlers.add(getHandler());
+                    return channelHandlers.toArray(new ChannelHandler[channelHandlers.size()]);
+//                    return new ChannelHandler[] {
+//                            //将自己[ConnectionWatchdog]装载到handler链中，当链路断掉之后，会触发ConnectionWatchdog #channelInActive方法
+//                            this,
+//                            //每隔30s的时间触发一次userEventTriggered的方法，并且指定IdleState的状态位是WRITER_IDLE
+//                            new IdleStateHandler(0, 30, 0, TimeUnit.SECONDS),
+//                            //实现userEventTriggered方法，并在state是WRITER_IDLE的时候发送一个心跳包到sever端，告诉server端我还活着
+//                            idleStateTrigger,
+//                            new MessageDecoder(),
+//                            encoder,
+//                            ackEncoder,
+//                            getHandler()
+//                    };
                 } catch (Exception e) {
                     e.printStackTrace();
                     return null;
@@ -151,7 +162,7 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
 		@Override
 		public void channelRead(ChannelHandlerContext ctx, Object msg) {
 			if(msg instanceof Acknowledge){
-				logger.info("收到server端的Ack信息，无需再次发送信息, sequence:{}", ((Acknowledge)msg).sequence());
+				logger.debug("收到server端的Ack信息，无需再次发送信息, sequence:{}", ((Acknowledge)msg).sequence());
 				ClientCache.messagesNonAcks.remove(((Acknowledge)msg).sequence());
 			}else{
                 System.out.println("客户端收到消息:"+ msg);
@@ -160,107 +171,6 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
 
     }
 	
-	/**
-     * **************************************************************************************************
-     *                                          Protocol
-     *  ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
-     *       2   │   1   │    1   │     8     │      4      │
-     *  ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤
-     *           │       │        │           │             │
-     *  │  MAGIC   Sign    Status   Invoke Id   Body Length                   Body Content              │
-     *           │       │        │           │             │
-     *  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
-     *
-     * 消息头16个字节定长
-     * = 2 // MAGIC = (short) 0xbabe
-     * + 1 // 消息标志位, 用来表示消息类型
-     * + 1 // 空
-     * + 8 // 消息 id long 类型
-     * + 4 // 消息体body长度, int类型
-     */
-    @ChannelHandler.Sharable
-    static class MessageEncoder extends MessageToByteEncoder<Message> {
-
-        @Override
-        protected void encode(ChannelHandlerContext ctx, Message msg, ByteBuf out) {
-            byte[] bytes = serializerImpl().writeObject(msg);
-            out.writeShort(MAGIC)
-                    .writeByte(msg.sign())
-                    .writeByte(0)  // status
-                    .writeLong(0L) // Invoke id， 用于Acknowledge的sequence
-                    .writeInt(bytes.length)
-                    .writeBytes(bytes);
-        }
-    }
-    
-    static class MessageDecoder extends ReplayingDecoder<MessageDecoder.State> {
-
-        public MessageDecoder() {
-            super(State.HEADER_MAGIC);
-        }
-
-        // 协议头
-        private final NettyCommonProtocol header = new NettyCommonProtocol();
-
-        @Override
-        protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
-            switch (state()) {
-                case HEADER_MAGIC:
-                    checkMagic(in.readShort());             // MAGIC
-                    checkpoint(State.HEADER_SIGN);
-                case HEADER_SIGN:
-                    header.sign(in.readByte());             // 消息标志位
-                    checkpoint(State.HEADER_STATUS);
-                case HEADER_STATUS:
-                    in.readByte();                          // no-op
-                    checkpoint(State.HEADER_ID);
-                case HEADER_ID:
-                    header. id(in.readLong());               // 消息id
-                    checkpoint(State.HEADER_BODY_LENGTH);
-                case HEADER_BODY_LENGTH:
-                    header.bodyLength(in.readInt());        // 消息体长度
-                    checkpoint(State.BODY);
-                case BODY:
-                    switch (header.sign()) {
-                    	case RESPONSE:
-                        case REQUEST:{
-                            byte[] bytes = new byte[header.bodyLength()];
-                            in.readBytes(bytes);
-                            Message msg = serializerImpl().readObject(bytes, Message.class);
-                            msg.sign(header.sign());
-                            out.add(msg);
-                            break;
-                        }
-                        case ACK: {
-                            byte[] bytes = new byte[header.bodyLength()];
-                            in.readBytes(bytes);
-                            Acknowledge ack = serializerImpl().readObject(bytes, Acknowledge.class);
-                            out.add(ack);
-                            break;
-                        }
-                        default:
-                            throw new IllegalArgumentException();
-                    }
-                    checkpoint(State.HEADER_MAGIC);
-            }
-        }
-
-        private static void checkMagic(short magic) throws Exception {
-            if (MAGIC != magic) {
-                throw new IllegalArgumentException();
-            }
-        }
-
-        enum State {
-            HEADER_MAGIC,
-            HEADER_SIGN,
-            HEADER_STATUS,
-            HEADER_ID,
-            HEADER_BODY_LENGTH,
-            BODY
-        }
-    }
-
 	@Override
 	protected EventLoopGroup initEventLoopGroup(int nWorkers, ThreadFactory workerFactory) {
 		return NativeSupport.isSupportNativeET() ? new EpollEventLoopGroup(nWorkers, workerFactory) : new NioEventLoopGroup(nWorkers, workerFactory);
@@ -318,6 +228,40 @@ public class DefaultCommonClientConnector extends NettyClientConnector {
 	public void addNeedAckMessageInfo(MessageNonAck msgNonAck) {
 		 ClientCache.messagesNonAcks.put(msgNonAck.getId(), msgNonAck);
 	}
+
+    /**
+     * 获取解码器
+     * @return
+     * @throws ClassNotFoundException
+     * @throws InstantiationException
+     * @throws IllegalAccessException
+     */
+    protected List<ChannelHandler> getDecoders() throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+        String decoders = SpringUtil.getProperty(ClientConsts.CLIENT_DECODERS, MessageDecoder.class.getName());
+        String[] split = decoders.split(",");
+        List<ChannelHandler> channelHandlers = new ArrayList<>(split.length);
+        for (String decoderStr : split) {
+            channelHandlers.add(createInstance(ChannelHandler.class, decoderStr));
+        }
+        return channelHandlers;
+    }
+
+    /**
+     * 获取编码器
+     * @return
+     * @throws ClassNotFoundException
+     * @throws InstantiationException
+     * @throws IllegalAccessException
+     */
+    protected List<ChannelHandler> getEncoders() throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+        String decoders = SpringUtil.getProperty(ClientConsts.CLIENT_ENCODERS, MessageEncoder.class.getName()+"," +AcknowledgeEncoder.class.getName());
+        String[] split = decoders.split(",");
+        List<ChannelHandler> channelHandlers = new ArrayList<>(split.length);
+        for (String encoder : split) {
+            channelHandlers.add(createInstance(ChannelHandler.class, encoder));
+        }
+        return channelHandlers;
+    }
 
     /**
      * 获取消息处理器

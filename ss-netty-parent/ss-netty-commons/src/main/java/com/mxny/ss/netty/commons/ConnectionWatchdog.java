@@ -41,7 +41,7 @@ public abstract class ConnectionWatchdog extends ChannelInboundHandlerAdapter im
     }
 
     @Override
-    public void channelActive(ChannelHandlerContext ctx) throws Exception {
+    public void channelActive(ChannelHandlerContext ctx) {
         Channel channel = ctx.channel();
         attempts = 0;
         logger.info("Connects with {}.", channel);
@@ -52,7 +52,7 @@ public abstract class ConnectionWatchdog extends ChannelInboundHandlerAdapter im
      * 因为链路断掉之后，会触发channelInActive方法，进行重连
      */
     @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+    public void channelInactive(ChannelHandlerContext ctx) {
         boolean doReconnect = reconnect;
         if (doReconnect) {
             if (attempts < MAX_ATTEMPTS) {
@@ -66,7 +66,7 @@ public abstract class ConnectionWatchdog extends ChannelInboundHandlerAdapter im
     }
 
     @Override
-    public void run(Timeout timeout) throws Exception {
+    public void run(Timeout timeout) {
         ChannelFuture future;
         synchronized (bootstrap) {
             bootstrap.handler(new ChannelInitializer<Channel>() {

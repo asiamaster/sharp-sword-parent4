@@ -85,32 +85,32 @@
             <groupId>com.mxny</groupId>
             <artifactId>ss-core</artifactId>
             <version>${project.parent.version}</version>
-            <exclusions>
+<!--            <exclusions>-->
 <!--                <exclusion>-->
 <!--                    <groupId>tk.mybatis</groupId>-->
 <!--                    <artifactId>mapper-spring-boot-starter</artifactId>-->
 <!--                </exclusion>-->
-                <exclusion>
-                    <groupId>org.mybatis</groupId>
-                    <artifactId>mybatis-typehandlers-jsr310</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.github.pagehelper</groupId>
-                    <artifactId>pagehelper-spring-boot-starter</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.alibaba</groupId>
-                    <artifactId>druid-spring-boot-starter</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>mysql</groupId>
-                    <artifactId>mysql-connector-java</artifactId>
-                </exclusion>
-                <exclusion>
-                    <groupId>com.alibaba</groupId>
-                    <artifactId>druid</artifactId>
-                </exclusion>
-            </exclusions>
+<!--                <exclusion>-->
+<!--                    <groupId>org.mybatis</groupId>-->
+<!--                    <artifactId>mybatis-typehandlers-jsr310</artifactId>-->
+<!--                </exclusion>-->
+<!--                <exclusion>-->
+<!--                    <groupId>com.github.pagehelper</groupId>-->
+<!--                    <artifactId>pagehelper-spring-boot-starter</artifactId>-->
+<!--                </exclusion>-->
+<!--                <exclusion>-->
+<!--                    <groupId>com.alibaba</groupId>-->
+<!--                    <artifactId>druid-spring-boot-starter</artifactId>-->
+<!--                </exclusion>-->
+<!--                <exclusion>-->
+<!--                    <groupId>mysql</groupId>-->
+<!--                    <artifactId>mysql-connector-java</artifactId>-->
+<!--                </exclusion>-->
+<!--                <exclusion>-->
+<!--                    <groupId>com.alibaba</groupId>-->
+<!--                    <artifactId>druid</artifactId>-->
+<!--                </exclusion>-->
+<!--            </exclusions>-->
         </dependency>
         <!-- https://mvnrepository.com/artifact/com.squareup/javapoet -->
         <dependency>

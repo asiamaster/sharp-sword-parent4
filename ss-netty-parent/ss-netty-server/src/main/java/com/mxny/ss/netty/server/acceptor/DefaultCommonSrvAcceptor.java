@@ -1,31 +1,29 @@
 package com.mxny.ss.netty.server.acceptor;
 
 import com.mxny.ss.netty.commons.*;
+import com.mxny.ss.netty.commons.channelhandler.AcknowledgeEncoder;
+import com.mxny.ss.netty.commons.channelhandler.MessageDecoder;
+import com.mxny.ss.netty.commons.channelhandler.MessageEncoder;
+import com.mxny.ss.netty.commons.consts.NettyProtocolConsts;
 import com.mxny.ss.netty.server.cache.ServerCache;
 import com.mxny.ss.netty.server.consts.ServerConsts;
 import com.mxny.ss.util.SpringUtil;
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.ByteBuf;
 import io.netty.channel.*;
 import io.netty.channel.epoll.EpollEventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.SocketChannel;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
-import io.netty.handler.codec.MessageToByteEncoder;
-import io.netty.handler.codec.ReplayingDecoder;
 import io.netty.handler.timeout.IdleStateHandler;
-import io.netty.util.Signal;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
-
-import static com.mxny.ss.netty.commons.NettyCommonProtocol.*;
-import static com.mxny.ss.netty.commons.serializer.SerializerHolder.serializerImpl;
 
 /**
  * 
@@ -40,12 +38,12 @@ public class DefaultCommonSrvAcceptor extends DefaultSrvAcceptor {
 	//acceptor的trigger
 	private final AcceptorIdleStateTrigger idleStateTrigger = new AcceptorIdleStateTrigger();
 	
-	//message的编码器
-	private final MessageEncoder encoder = new MessageEncoder();
-	
-	//Ack的编码器
-	private final AcknowledgeEncoder ackEncoder = new AcknowledgeEncoder();
-
+//	//message的编码器
+//	private final MessageEncoder encoder = new MessageEncoder();
+//
+//	//Ack的编码器
+//	private final AcknowledgeEncoder ackEncoder = new AcknowledgeEncoder();
+//
 //	/**
 //	 * SimpleChannelInboundHandler类型的handler只处理@{link Message}类型的数据
 //	 */
@@ -132,6 +130,7 @@ public class DefaultCommonSrvAcceptor extends DefaultSrvAcceptor {
 
 	@Override
 	protected ChannelFuture bind(SocketAddress localAddress) {
+
 		ServerBootstrap boot = bootstrap();
 		boot.channel(NioServerSocketChannel.class)
         .childHandler(new ChannelInitializer<SocketChannel>() {
@@ -139,19 +138,56 @@ public class DefaultCommonSrvAcceptor extends DefaultSrvAcceptor {
             @Override
             protected void initChannel(SocketChannel ch) throws Exception {
                 ch.pipeline().addLast(
-                		//每隔60s的时间内如果没有接受到任何的read事件的话，则会触发userEventTriggered事件，并指定IdleState的类型为READER_IDLE
+                		//每隔60s的时间内如果没有接受到任何的read事件的话，则会触发AcceptorIdleStateTrigger.userEventTriggered事件，并指定IdleState的类型为READER_IDLE
                 		new IdleStateHandler(60, 0, 0, TimeUnit.SECONDS),
                 		//因为我们在client端设置了每隔30s会发送一个心跳包过来，如果60s都没有收到心跳，则说明链路发生了问题
                         idleStateTrigger,
-						new NettyConnectManageHandler(),
-                        //message的解码器
-                        new MessageDecoder(),
-                        encoder,
-                        ackEncoder,
-						getHandler());
+						new NettyConnectManageHandler()
+//                        //message的解码器
+//                        new MessageDecoder(),
+//                        encoder,
+//                        ackEncoder
+						)
+						.addLast(getDecoders())
+						.addLast(getEncoders())
+						.addLast(getHandler());
             }
         });
 		return boot.bind(localAddress);
+	}
+
+	/**
+	 * 获取解码器
+	 * @return
+	 * @throws ClassNotFoundException
+	 * @throws InstantiationException
+	 * @throws IllegalAccessException
+	 */
+	protected ChannelHandler[] getDecoders() throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+		String decoders = SpringUtil.getProperty(ServerConsts.SERVER_DECODERS, MessageDecoder.class.getName());
+		String[] split = decoders.split(",");
+		List<ChannelHandler> channelHandlers = new ArrayList<>(split.length);
+		for (String decoderStr : split) {
+			channelHandlers.add(createInstance(ChannelHandler.class, decoderStr));
+		}
+		return channelHandlers.toArray(new ChannelHandler[channelHandlers.size()]);
+	}
+
+	/**
+	 * 获取编码器
+	 * @return
+	 * @throws ClassNotFoundException
+	 * @throws InstantiationException
+	 * @throws IllegalAccessException
+	 */
+	protected ChannelHandler[] getEncoders() throws ClassNotFoundException, InstantiationException, IllegalAccessException {
+		String decoders = SpringUtil.getProperty(ServerConsts.SERVER_ENCODERS, MessageEncoder.class.getName()+"," +AcknowledgeEncoder.class.getName());
+		String[] split = decoders.split(",");
+		List<ChannelHandler> channelHandlers = new ArrayList<>(split.length);
+		for (String encoder : split) {
+			channelHandlers.add(createInstance(ChannelHandler.class, encoder));
+		}
+		return channelHandlers.toArray(new ChannelHandler[channelHandlers.size()]);
 	}
 
 	/**
@@ -184,134 +220,6 @@ public class DefaultCommonSrvAcceptor extends DefaultSrvAcceptor {
 	}
 	
 	/**
-	 * 解码器，继承于ReplayingDecoder
-	 * @author Wang Mi
-	 * @description 
-	 */
-	/**
-     * **************************************************************************************************
-     *                                          Protocol
-     *  ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
-     *       2   │   1   │    1   │     8     │      4      │
-     *  ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤
-     *           │       │        │           │             │
-     *  │  MAGIC   Sign    Status   Invoke Id   Body Length                   Body Content              │
-     *           │       │        │           │             │
-     *  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
-     *
-     * 消息头16个字节定长
-     * = 2 // MAGIC = (short) 0xbabe
-     * + 1 // 消息标志位, 用来表示消息类型
-     * + 1 // 空
-     * + 8 // 消息 id long 类型
-     * + 4 // 消息体body长度, int类型
-     */
-	static class MessageDecoder extends ReplayingDecoder<MessageDecoder.State> {
-
-		//构造函数 设置初始的枚举类型是什么
-        public MessageDecoder() {
-            super(State.HEADER_MAGIC);
-        }
-
-        // 协议头
-        private final NettyCommonProtocol header = new NettyCommonProtocol();
-
-        @Override
-        protected void decode(ChannelHandlerContext ctx, ByteBuf in, List<Object> out) throws Exception {
-            switch (state()) {
-                case HEADER_MAGIC:
-                    checkMagic(in.readShort());             // MAGIC
-                    checkpoint(State.HEADER_SIGN);
-                case HEADER_SIGN:
-                    header.sign(in.readByte());             // 消息标志位
-                    checkpoint(State.HEADER_STATUS);
-                case HEADER_STATUS:
-                    in.readByte();                          // no-op
-                    checkpoint(State.HEADER_ID);
-                case HEADER_ID:
-                    header.id(in.readLong());               // 消息id
-                    checkpoint(State.HEADER_BODY_LENGTH);
-                case HEADER_BODY_LENGTH:
-					header.bodyLength(in.readInt());        // 消息体长度
-                    checkpoint(State.BODY);
-                case BODY:
-                    switch (header.sign()) {
-                        case HEARTBEAT:
-                            break;
-						case RESPONSE:
-                        case REQUEST:
-						case LOGIN:
-						case LOGOUT:{
-                            byte[] bytes = new byte[header.bodyLength()];
-                            in.readBytes(bytes);
-                            Message msg = serializerImpl().readObject(bytes, Message.class);
-                            msg.sign(header.sign());
-                            out.add(msg);
-                            break;
-                        }
-                        case ACK: {
-							byte[] bytes = new byte[header.bodyLength()];
-							in.readBytes(bytes);
-							Acknowledge ack = serializerImpl().readObject(bytes, Acknowledge.class);
-							out.add(ack);
-							break;
-						}
-                        default:
-                            throw new IllegalAccessException();
-                    }
-                    checkpoint(State.HEADER_MAGIC);
-            }
-        }
-        private static void checkMagic(short magic) throws Signal {
-            if (MAGIC != magic) {
-                throw new IllegalArgumentException();
-            }
-        }
-
-        enum State {
-            HEADER_MAGIC,
-            HEADER_SIGN,
-            HEADER_STATUS,
-            HEADER_ID,
-            HEADER_BODY_LENGTH,
-            BODY
-        }
-	}
-	
-	/**
-     * **************************************************************************************************
-     *                                          Protocol
-     *  ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
-     *       2   │   1   │    1   │     8     │      4      │
-     *  ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤
-     *           │       │        │           │             │
-     *  │  MAGIC   Sign    Status   Invoke Id   Body Length                   Body Content              │
-     *           │       │        │           │             │
-     *  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
-     *
-     * 消息头16个字节定长
-     * = 2 // MAGIC = (short) 0xbabe
-     * + 1 // 消息标志位, 用来表示消息类型
-     * + 1 // 空
-     * + 8 // 消息 id long 类型
-     * + 4 // 消息体body长度, int类型
-     */
-    @ChannelHandler.Sharable
-    static class MessageEncoder extends MessageToByteEncoder<Message> {
-
-        @Override
-        protected void encode(ChannelHandlerContext ctx, Message msg, ByteBuf out) {
-            byte[] bytes = serializerImpl().writeObject(msg);
-            out.writeShort(MAGIC)
-                    .writeByte(msg.sign())
-                    .writeByte(0)
-                    .writeLong(0L)
-                    .writeInt(bytes.length)
-                    .writeBytes(bytes);
-        }
-    }
-
-	/**
 	 * 服务端消息处理示例
 	 */
     @ChannelHandler.Sharable
@@ -319,16 +227,16 @@ public class DefaultCommonSrvAcceptor extends DefaultSrvAcceptor {
 		@Override
 		protected void channelRead0(ChannelHandlerContext ctx, Message message) {
 			Channel channel = ctx.channel();
-			Object data = message.data();
-			logger.info("服务端收到消息:"+message.toString());
+			Object data = message.getData();
+			logger.debug("服务端收到消息:"+message.toString());
 			//终端登录
-			if (message.sign() == LOGIN) {
+			if (message.getCmd() == NettyProtocolConsts.CMD_LOGIN) {
 				String terminalId = data.toString();
 				ServerCache.TERMINAL_CHANNEL_MAP.put(terminalId, channel);
 				ServerCache.CHANNELID_TERMINAL_MAP.put(channel.id(), terminalId);
 				// 接收到发布信息的时候，要给Client端回复登录完成的ACK
-				channel.writeAndFlush(new Acknowledge(message.sequence(), LOGIN)).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
-			}else if(message.sign() == LOGOUT) {
+				channel.writeAndFlush(new Acknowledge(message.getSequence())).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+			}else if(message.getCmd() == NettyProtocolConsts.CMD_LOGOUT) {
 				String terminalId = data.toString();
 				if(ServerCache.TERMINAL_CHANNEL_MAP.containsKey(terminalId)){
 					ServerCache.TERMINAL_CHANNEL_MAP.remove(terminalId);
@@ -337,10 +245,10 @@ public class DefaultCommonSrvAcceptor extends DefaultSrvAcceptor {
 					ServerCache.CHANNELID_TERMINAL_MAP.remove(channel.id());
 				}
 				// 接收到发布信息的时候，要给Client端回复登录完成的ACK
-				channel.writeAndFlush(new Acknowledge(message.sequence(), LOGOUT)).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+				channel.writeAndFlush(new Acknowledge(message.getSequence())).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
 			}else {
 				// 接收到发布信息的时候，要给Client端回复正常响应的ACK
-				channel.writeAndFlush(new Acknowledge(message.sequence(), RESPONSE)).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
+				channel.writeAndFlush(new Acknowledge(message.getSequence())).addListener(ChannelFutureListener.FIRE_EXCEPTION_ON_FAILURE);
 			}
 		}
     }

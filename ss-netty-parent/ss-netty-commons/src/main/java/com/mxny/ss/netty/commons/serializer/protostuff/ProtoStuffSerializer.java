@@ -25,7 +25,9 @@ public class ProtoStuffSerializer implements Serializer {
 	@Override
 	@SuppressWarnings("unchecked")
 	public <T> byte[] writeObject(T obj) {
-
+		if (obj == null) {
+			return new byte[0];
+		}
 		Class<T> cls = (Class<T>) obj.getClass();
 		LinkedBuffer buffer = LinkedBuffer.allocate(LinkedBuffer.DEFAULT_BUFFER_SIZE);
 		try {

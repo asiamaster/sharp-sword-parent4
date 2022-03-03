@@ -12,7 +12,7 @@ import io.netty.channel.Channel;
  * 客户端未收到服务端回复Acknowledge时的重试发送对象
  */
 public class MessageNonAck {
-    private final long id;
+    private final int id;
     private final Message msg;
     private final Channel channel;
     private final long timestamp = System.currentTimeMillis();
@@ -20,10 +20,10 @@ public class MessageNonAck {
     public MessageNonAck(Message msg, Channel channel) {
         this.msg = msg;
         this.channel = channel;
-        id = msg.sequence();
+        id = msg.getSequence();
     }
 
-    public long getId() {
+    public int getId() {
         return id;
     }
 

@@ -17,5 +17,5 @@ public class ClientCache {
     //连接器
     public static DefaultCommonClientConnector clientConnector;
 
-    public final static ConcurrentMap<Long, MessageNonAck> messagesNonAcks = new ConcurrentHashMap<Long, MessageNonAck>();
+    public final static ConcurrentMap<Integer, MessageNonAck> messagesNonAcks = new ConcurrentHashMap<Integer, MessageNonAck>();
 }

@@ -9,83 +9,89 @@ public class NettyCommonProtocol {
     /**
      * **************************************************************************************************
      *                                          Protocol
-     *  ┌ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┐
-     *       2   │   1   │    1   │     8     │      4      │
-     *  ├ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┤
-     *           │       │        │           │             │
-     *  │  MAGIC   Sign    Status   Invoke Id   Body Length                   Body Content              │
-     *           │       │        │           │             │
-     *  └ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ┘
-     *
-     * 消息头16个字节定长
-     * = 2 // MAGIC = (short) 0xbcae
-     * + 1 // 消息标志位, 用来表示消息类型
-     * + 1 // 空
-     * + 8 // 消息 id long 类型
-     * + 4 // 消息体body长度, int类型
+     *  | 序号 |  协议头 |  类型 |  长度(字符) |   描述 |
+     * | ------------ | ------------ | ------------ | ------------ |
+     * |1 | magic  | short | 2 | 起始帧, 7857 |
+     * |2 | terminalId |  int | 4 | 终端号  |
+     * |3 | cmd    |  byte | 1 | 命令字，参考命令字说明  |
+     * |4 | source |  byte | 1 | 帧来源, 1:server; 2:client  |
+     * |5 | transferType |  byte |  1 | 传输类型， 1:请求帧；2:应答帧;  |
+     * |6 | terminalTime | int  | 4  |  终端时间(2020年1月1日0时开始的毫秒数)  |
+     * |7 | bodyLength | short  | 2  |  消息长度, 最大65535  |
+     * |8 | body | byte[]  | bodyLength   | 消息内容, protobuf序号化  |
      */
-    //  -------------------  status常量st  --------------------
 
+    /** 命令字，参考命令字说明 */
+    private byte cmd;
+    /** 终端id */
+    private int terminalId;
+    /** 帧来源, 1:server; 2:client */
+    private byte source;
+    /** 传输类型， 1:请求帧；2:应答帧; */
+    private byte transferType;
+    /** 终端时间(2020年1月1日0时开始的毫秒数) */
+    private int terminalTime;
+    /** 消息体长度 */
+    private short bodyLength;
+//    /** 结束标识, 0x68 */
+//    private byte endMark;
+//    /** 校验和，从起始字符到结束标识所有的数据累加和 */
+//    private int checkSum;
 
-    //  -------------------  status常量end --------------------
-
-    //  -------------------  消息体常量st  ---------------------
-	/** 心跳协议头长度 */
-    public static final int HEAD_LENGTH = 16;
-    /** Acknowledge */
-    public static final byte ACK = 126;
-    /** Heartbeat */
-    public static final byte HEARTBEAT = 127;
-    /** Request */
-    public static final byte REQUEST = 1;
-    /** Response */
-    public static final byte RESPONSE = 2;
-    public static final byte LOGIN = 3;
-    public static final byte LOGOUT = 4;
-    //  -------------------  消息体常量end ---------------------
-
-    /** Magic */
-    public static final short MAGIC = (short) 0xbcae;
-    private byte sign;
-    private byte status;
-    private long id;
-    private int bodyLength;
-
-    public byte sign() {
-        return sign;
+    public NettyCommonProtocol() {
     }
 
-    public void sign(byte sign) {
-        this.sign = sign;
+    public byte getCmd() {
+        return cmd;
     }
 
-    public byte status() {
-        return status;
+    public void setCmd(byte cmd) {
+        this.cmd = cmd;
     }
 
-    public void status(byte status) {
-        this.status = status;
+    public byte getSource() {
+        return source;
     }
 
-    public long id() {
-        return id;
+    public void setSource(byte source) {
+        this.source = source;
     }
 
-    public void id(long id) {
-        this.id = id;
+    public byte getTransferType() {
+        return transferType;
     }
 
-    public int bodyLength() {
+    public void setTransferType(byte transferType) {
+        this.transferType = transferType;
+    }
+
+    public int getTerminalTime() {
+        return terminalTime;
+    }
+
+    public void setTerminalTime(int terminalTime) {
+        this.terminalTime = terminalTime;
+    }
+
+    public short getBodyLength() {
         return bodyLength;
     }
 
-    public void bodyLength(int bodyLength) {
+    public void setBodyLength(short bodyLength) {
         this.bodyLength = bodyLength;
     }
 
-	@Override
+    public int getTerminalId() {
+        return terminalId;
+    }
+
+    public void setTerminalId(int terminalId) {
+        this.terminalId = terminalId;
+    }
+
+    @Override
 	public String toString() {
-		return "NettyCommonProtocol [sign=" + sign + ", status=" + status + ", id=" + id + ", bodyLength=" + bodyLength + "]";
+		return "NettyCommonProtocol [cmd=" + cmd + ", source=" + source + ", transferType=" + transferType + ", bodyLength=" + bodyLength + "]";
 	}
 
 }
