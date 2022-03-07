@@ -17,6 +17,7 @@ import com.mxny.ss.exception.ParamErrorException;
 import com.mxny.ss.metadata.ValueProviderUtils;
 import com.mxny.ss.util.DateUtils;
 import com.mxny.ss.util.POJOUtils;
+import com.mxny.ss.util.SecurityUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.time.DateFormatUtils;
@@ -36,7 +37,6 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.util.*;
-import java.util.regex.Pattern;
 
 
 /**
@@ -487,7 +487,9 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 			domain = getDefaultBean (tClazz);
 		}
 		//SQL注入拦截
-		checkDomainXss(domain);
+		if (SecurityUtils.checkDomainXss(domain)) {
+			throw new ParamErrorException("SQL注入拦截:");
+		}
 		ExampleExpand example = createExample(domain, tClazz);
 		//接口只取getter方法
 		if(tClazz.isInterface()) {
@@ -688,7 +690,7 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 				}
 			}
 			//防注入
-			if(value instanceof String && !checkXss((String)value)){
+			if(value instanceof String && !SecurityUtils.checkXss((String)value)){
 				throw new ParamErrorException("SQL注入拦截:"+value);
 			}
 
@@ -746,55 +748,6 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
         }
         setOrderBy(domain, example);
     }
-
-	/**
-	 * SQL注入拦截
-	 * @param domain
-	 * @return
-	 */
-	protected void checkDomainXss(T domain){
-		if (domain == null) {
-			return;
-		}
-		if (domain instanceof IBaseDomain) {
-			IBaseDomain iBaseDomain = (IBaseDomain) domain;
-			if (!checkXss(iBaseDomain.getSort())) {
-				throw new ParamErrorException("SQL注入拦截:"+iBaseDomain.getSort());
-			}
-			if (!checkXss(iBaseDomain.getOrder())) {
-				throw new ParamErrorException("SQL注入拦截:"+iBaseDomain.getOrder());
-			}
-			if (domain instanceof IMybatisForceParams) {
-				IMybatisForceParams mybatisForceParams = (IMybatisForceParams) domain;
-				if (mybatisForceParams.getSelectColumns() != null) {
-					for (String selectColumn : mybatisForceParams.getSelectColumns()) {
-						if (!checkXss(selectColumn)) {
-							throw new ParamErrorException("SQL注入拦截:"+selectColumn);
-						}
-					}
-				}
-			}
-		}
-	}
-
-	private static final String sqlReg = "(?:')|(?:--)|(/\\*(?:.|[\\n\\r])*?\\*/)|"+ "(\\b(select|update|and|or|delete|insert|trancate|char|into|substr|ascii|declare|exec|count|master|into|drop|execute)\\b)";
-	private static Pattern sqlPattern = Pattern.compile(sqlReg, Pattern.CASE_INSENSITIVE);
-	/**
-	 * 检测SQL注入
-	 *
-	 * @param value
-	 * @return
-	 */
-	private boolean checkXss(String value) {
-		if (value == null || "".equals(value)) {
-			return true;
-		}
-		if (sqlPattern.matcher(value).find()) {
-			LOGGER.error("SQL注入拦截:" + value);
-			return false;
-		}
-		return true;
-	}
 
     /**
      * 判断该方法是否要排除，用于buildExampleByGetterMethods
@@ -860,7 +813,7 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 				}
 			}
 			//防注入
-			if(value instanceof String && !checkXss((String)value)){
+			if(value instanceof String && !SecurityUtils.checkXss((String)value)){
 				throw new ParamErrorException("SQL注入拦截:"+value);
 			}
 			if(sqlOperator == null || SqlOperator.AND.equals(sqlOperator.value())) {
