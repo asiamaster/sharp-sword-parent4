@@ -440,6 +440,12 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 		return getDao().selectByExampleExpand(exampleExpand);
 	}
 
+	/**
+	 * 用于查询动态返回类型IDynamicResultType
+	 * 需配置ResultTypeInterceptor
+	 * @param domain
+	 * @return
+	 */
 	@Override
 	public List listObjectByExample(T domain){
 		return (List) listByExample(domain);

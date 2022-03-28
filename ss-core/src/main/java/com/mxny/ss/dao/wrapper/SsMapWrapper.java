@@ -21,7 +21,7 @@ public class SsMapWrapper extends MapWrapper {
     @Override
     public String findProperty(String name, boolean useCamelCaseMapping) {
         if(useCamelCaseMapping){
-            //这一行代码实现将map所有key值转换成大写
+            //这一行代码实现将map所有key值下划线转驼峰
             return name==null?"": POJOUtils.lineToHump(name);
         }
         return name;
