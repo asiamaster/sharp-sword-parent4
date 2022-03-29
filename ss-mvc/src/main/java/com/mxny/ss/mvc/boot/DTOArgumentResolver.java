@@ -1,6 +1,5 @@
 package com.mxny.ss.mvc.boot;
 
-import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONException;
 import com.alibaba.fastjson.JSONObject;
 import com.google.common.collect.Lists;
@@ -12,6 +11,7 @@ import com.mxny.ss.exception.AppException;
 import com.mxny.ss.mvc.annotation.Cent2Yuan;
 import com.mxny.ss.mvc.servlet.RequestReaderHttpServletRequestWrapper;
 import com.mxny.ss.mvc.util.BeanValidator;
+import com.mxny.ss.util.JsonUtils;
 import com.mxny.ss.util.POJOUtils;
 import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.commons.collections4.CollectionUtils;
@@ -502,10 +502,11 @@ public class DTOArgumentResolver implements HandlerMethodArgumentResolver {
 				} catch (UnsupportedEncodingException | IllegalArgumentException e) {
 				}
 				JSONObject jsonObject;
-				if(JSON.isValid(inputString)) {
-					jsonObject = JSONObject.parseObject(inputString);
-				}else{
+				Object valid = JsonUtils.isValid(inputString);
+				if (valid == null) {
 					jsonObject = JSONObject.parseObject(getJsonStrByQueryUrl(inputString));
+				} else {
+					jsonObject = (JSONObject) valid;
 				}
 				for(Map.Entry<String, Object> entry : jsonObject.entrySet()){
 					//单独处理metadata

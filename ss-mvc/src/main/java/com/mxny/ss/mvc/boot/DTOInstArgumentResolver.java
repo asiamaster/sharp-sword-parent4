@@ -13,6 +13,7 @@ import com.mxny.ss.exception.AppException;
 import com.mxny.ss.mvc.annotation.Cent2Yuan;
 import com.mxny.ss.mvc.servlet.RequestReaderHttpServletRequestWrapper;
 import com.mxny.ss.mvc.util.BeanValidator;
+import com.mxny.ss.util.JsonUtils;
 import com.mxny.ss.util.POJOUtils;
 import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.commons.collections4.CollectionUtils;
@@ -122,15 +123,15 @@ public class DTOInstArgumentResolver implements HandlerMethodArgumentResolver {
             if(StringUtils.isBlank(inputString)) {
                 return new ArrayList<>();
             }
-            JSONArray jsonArray = null;
             try {
                 inputString = java.net.URLDecoder.decode(inputString, "UTF-8");
             } catch (UnsupportedEncodingException | IllegalArgumentException e) {
             }
-            if(JSON.isValid(inputString)) {
-                jsonArray = JSONObject.parseArray(inputString);
+            Object valid = JsonUtils.isValid(inputString);
+            if (valid == null || !(valid instanceof JSONArray)) {
+                return dtoList;
             }
-            jsonArray.forEach(obj -> {
+            ((JSONArray)valid).forEach(obj -> {
                 JSONObject jsonObject = (JSONObject)obj;
                 DTO dto = new DTO();
                 for(Map.Entry<String, Object> entry : jsonObject.entrySet()){
