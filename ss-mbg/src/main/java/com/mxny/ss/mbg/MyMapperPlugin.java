@@ -1,6 +1,7 @@
 package com.mxny.ss.mbg;
 
 import com.alibaba.fastjson.JSONObject;
+import com.mxny.ss.dto.DTOUtils;
 import com.mxny.ss.mbg.beetl.BeetlTemplateUtil;
 import com.mxny.ss.util.POJOUtils;
 import org.apache.commons.lang3.StringUtils;
@@ -310,12 +311,25 @@ public class MyMapperPlugin extends PluginAdapter {
 			setMethod.addParameter(0, setParameter);
 			dtoInterface.addMethod(setMethod);
 		}
+		//create方法
+		addCreateMethod(dtoInterface);
+
 		//根据字段类型统一导包
 		for(FullyQualifiedJavaType fullyQualifiedJavaType : buffer) {
 			dtoInterface.addImportedType(fullyQualifiedJavaType);
 		}
 		//生成DTO get方法上的@Id, @GeneratedValue,@Column,FieldDef和EditMode注解
 		processDTOGetMethodAnnotation(dtoInterface, introspectedTable);
+	}
+
+	private void addCreateMethod(Interface dtoInterface){
+		Method createMethod = new Method("create");
+		createMethod.setReturnType(dtoInterface.getType());
+		createMethod.setStatic(true);
+		createMethod.addBodyLine("return DTOUtils.newInstance("+dtoInterface.getType().getShortName()+".class);");
+		dtoInterface.addMethod(createMethod);
+		FullyQualifiedJavaType dtoUtilsType = new FullyQualifiedJavaType(DTOUtils.class.getCanonicalName());
+		dtoInterface.addImportedType(dtoUtilsType);
 	}
 
 	/**
