@@ -1,5 +1,6 @@
 package com.mxny.ss.domain;
 
+import com.mxny.ss.dto.DTOUtils;
 import com.mxny.ss.dto.IDynamicResultType;
 import com.mxny.ss.dto.IMybatisForceParams;
 import com.mxny.ss.dto.ITaosTableDomain;
@@ -15,10 +16,9 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * TAOS动态模型
+ * TAOS动态模型，包括超表名，子表名，动态字段，动态条件和动态查询列等信息
  * 子类需要有Tag相关字段
  */
-//@Table(name="dynamic_field")
 public interface DynamicDomain extends ITaosTableDomain, IMybatisForceParams, IDynamicResultType {
     //动态表名字段名，用于批量插入数据行的动态表名
     String DYNAMIC_TABLE_NAME_KEY = "dynamicTableName";
@@ -96,4 +96,8 @@ public interface DynamicDomain extends ITaosTableDomain, IMybatisForceParams, ID
     @Transient
     List<Map> getDatas();
     void setDatas(List<Map> datas);
+
+    static DynamicDomain create() {
+        return DTOUtils.newInstance(DynamicDomain.class);
+    }
 }

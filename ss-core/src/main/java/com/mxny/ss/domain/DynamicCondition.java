@@ -1,12 +1,13 @@
 package com.mxny.ss.domain;
 
+import com.mxny.ss.dto.DTOUtils;
 import com.mxny.ss.dto.IBaseDomain;
 import com.mxny.ss.metadata.FieldEditor;
 import com.mxny.ss.metadata.annotation.EditMode;
 import com.mxny.ss.metadata.annotation.FieldDef;
 
 import javax.persistence.*;
-import java.util.Date;
+import java.time.LocalDateTime;
 
 /**
  * 动态条件字段
@@ -148,32 +149,56 @@ public interface DynamicCondition extends IBaseDomain {
     String getNotes();
     void setNotes(String notes);
 
-
     /**
      * 创建人id
      * @return
      */
+    @Column(name="`creator_id`")
     Long getCreatorId();
     void setCreatorId(Long creatorId);
+
+    /**
+     * 创建人名称
+     * @return
+     */
+    @Column(name="`creator_name`")
+    String getCreatorName();
+    void setCreatorName(String creatorName);
 
     /**
      * 创建时间
      * @return
      */
-    Date getCreateTime();
-    void setCreateTime(Date createTime);
+    @Column(name="`create_time`")
+    LocalDateTime getCreateTime();
+    void setCreateTime(LocalDateTime createTime);
 
     /**
      * 修改人id
      * @return
      */
+    @Column(name="`modifier_id`")
     Long getModifierId();
     void setModifierId(Long modifierId);
+
+    /**
+     * 修改人名称
+     * @return
+     */
+    @Column(name="`modifier_name`")
+    String getModifierName();
+    void setModifierName(String modifierName);
 
     /**
      * 修改时间
      * @return
      */
-    Date getModifyTime();
-    void setModifyTime(Date modifyTime);
+    @Column(name="`modify_time`")
+    LocalDateTime getModifyTime();
+    void setModifyTime(LocalDateTime modifyTime);
+
+    static DynamicCondition create() {
+        return DTOUtils.newInstance(DynamicCondition.class);
+    }
+
 }

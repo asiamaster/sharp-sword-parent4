@@ -1,12 +1,13 @@
 package com.mxny.ss.domain;
 
+import com.mxny.ss.dto.DTOUtils;
 import com.mxny.ss.dto.IBaseDomain;
 import com.mxny.ss.metadata.FieldEditor;
 import com.mxny.ss.metadata.annotation.EditMode;
 import com.mxny.ss.metadata.annotation.FieldDef;
 
 import javax.persistence.*;
-import java.util.Date;
+import java.time.LocalDateTime;
 
 /**
  * 动态字段
@@ -24,6 +25,12 @@ public interface DynamicField extends IBaseDomain {
 
     @Override
     void setId(Long id);
+
+    @Column(name = "`dynamic_table_id`")
+    @FieldDef(label="动态表id")
+    Long getDynamicTableId();
+
+    void setDynamicTableId(Long dynamicTableId);
 
     /**
      * 是否TaosTag, 1:是, 0:否
@@ -84,6 +91,7 @@ public interface DynamicField extends IBaseDomain {
      * 1： 启用，0：禁用
      * @return
      */
+    @Column(name="enabled")
     Boolean getEnabled();
     void setEnabled(Boolean enabled);
 
@@ -107,27 +115,51 @@ public interface DynamicField extends IBaseDomain {
      * 创建人id
      * @return
      */
+    @Column(name="`creator_id`")
     Long getCreatorId();
     void setCreatorId(Long creatorId);
+
+    /**
+     * 创建人名称
+     * @return
+     */
+    @Column(name="`creator_name`")
+    String getCreatorName();
+    void setCreatorName(String creatorName);
 
     /**
      * 创建时间
      * @return
      */
-    Date getCreateTime();
-    void setCreateTime(Date createTime);
+    @Column(name="`create_time`")
+    LocalDateTime getCreateTime();
+    void setCreateTime(LocalDateTime createTime);
 
     /**
      * 修改人id
      * @return
      */
+    @Column(name="`modifier_id`")
     Long getModifierId();
     void setModifierId(Long modifierId);
+
+    /**
+     * 修改人名称
+     * @return
+     */
+    @Column(name="`modifier_name`")
+    String getModifierName();
+    void setModifierName(String modifierName);
 
     /**
      * 修改时间
      * @return
      */
-    Date getModifyTime();
-    void setModifyTime(Date modifyTime);
+    @Column(name="`modify_time`")
+    LocalDateTime getModifyTime();
+    void setModifyTime(LocalDateTime modifyTime);
+
+    static DynamicField create() {
+        return DTOUtils.newInstance(DynamicField.class);
+    }
 }
