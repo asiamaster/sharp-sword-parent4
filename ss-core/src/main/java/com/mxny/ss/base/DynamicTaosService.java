@@ -246,6 +246,35 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
     }
 
     /**
+     * 丢弃表
+     * @param tableName
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void dropTable(String tableName) {
+        if(StringUtils.isBlank(tableName)){
+            return;
+        }
+        getJdbcTemplate().execute("drop table IF EXISTS " + tableName);
+    }
+
+    /**
+     * 修改列宽
+     * @param dynamicField
+     */
+    @Transactional(rollbackFor = Exception.class)
+    public void alterColumnLength(DynamicField dynamicField) {
+        String sqlFormat = null;
+        if (dynamicField.getIsTag()) {
+            sqlFormat = "ALTER STABLE %s MODIFY TAG %s %s(%s)";
+        }else{
+            sqlFormat = "ALTER STABLE %s MODIFY COLUMN %s %s(%s)";
+        }
+        getJdbcTemplate().execute(String.format(sqlFormat,
+                dynamicField.getTableName(), dynamicField.getColumnName(),
+                dynamicField.getDataType(), dynamicField.getDataLength()));
+    }
+
+    /**
      * 构建动态批量插入sql
      * 由于DynamicDomain仅为单子表的语义模型，所以该方法只支持单子表的批量插入
      * @param dynamicDomain， 主要参数：DynamicFields、 TableName和DynamicTableName

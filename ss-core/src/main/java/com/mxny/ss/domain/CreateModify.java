@@ -3,7 +3,7 @@ package com.mxny.ss.domain;
 import com.mxny.ss.dto.IDTO;
 
 import javax.persistence.Column;
-import java.time.LocalDateTime;
+import java.util.Date;
 
 /**
  * 通用的创建人和修改人相关字段
@@ -32,8 +32,8 @@ public interface CreateModify extends IDTO {
      * @return
      */
     @Column(name="`create_time`")
-    LocalDateTime getCreateTime();
-    void setCreateTime(LocalDateTime createTime);
+    Date getCreateTime();
+    void setCreateTime(Date createTime);
 
     /**
      * 修改人id
@@ -56,6 +56,6 @@ public interface CreateModify extends IDTO {
      * @return
      */
     @Column(name="`modify_time`")
-    LocalDateTime getModifyTime();
-    void setModifyTime(LocalDateTime modifyTime);
+    Date getModifyTime();
+    void setModifyTime(Date modifyTime);
 }
