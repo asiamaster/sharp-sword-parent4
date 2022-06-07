@@ -11,6 +11,7 @@ public class RestfulAnnotation {
     private Map<String, Object> voFields = new HashMap<>(4);
     private Map<String, String> headers;
     private Map<String, String> reqParams = new HashMap<>(4);
+    private Map<String, String> pathParams = new HashMap<>(4);
     private String post;
     private String get;
 
@@ -40,6 +41,14 @@ public class RestfulAnnotation {
 
     public Map<String, String> getReqParams() {
         return reqParams;
+    }
+
+    public Map<String, String> getPathParams() {
+        return pathParams;
+    }
+
+    public void setPathParams(Map<String, String> pathParams) {
+        this.pathParams = pathParams;
     }
 
     public void setReqParams(Map<String, String> reqParams) {

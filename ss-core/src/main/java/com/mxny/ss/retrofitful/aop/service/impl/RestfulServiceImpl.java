@@ -59,6 +59,9 @@ public class RestfulServiceImpl implements RestfulService {
         }
         String httpMethod = StringUtils.isBlank(restfulAnnotation.getPost()) ? "GET" : "POST";
         String url = "POST".equals(httpMethod) ? baseUrl + restfulAnnotation.getPost() : baseUrl + restfulAnnotation.getGet();
+        if (!restfulAnnotation.getPathParams().isEmpty()) {
+            url = RegUtils.replaceBraceParams(url, restfulAnnotation.getPathParams());
+        }
         return DelegateService.doHttp(url, method.getGenericReturnType(), restfulAnnotation, httpMethod);
     }
     @SuppressWarnings(value={"unchecked", "deprecation"})
@@ -158,6 +161,18 @@ public class RestfulServiceImpl implements RestfulService {
                     }else{
                         restfulAnnotation.getReqParams().put(reqParam.value(), param.toString());
                     }
+                }else if(PathParam.class.equals(annotation.annotationType())){
+                    Object param = args[i];
+                    PathParam pathParam = (PathParam)annotation;
+                    if(pathParam.required() && param == null){
+                        throw new ParamErrorException("@PathParam必填参数为空");
+                    }
+                    if(param == null){
+                        //当ReqParam为null时，POST传参在okhttputil会空指针，这里处理为空串
+                        restfulAnnotation.getPathParams().put(pathParam.value(), "");
+                        continue;
+                    }
+                    restfulAnnotation.getPathParams().put(pathParam.value(), param.toString());
                 }
                 //处理对象form参数
                 else if(ReqVOParam.class.equals(annotation.annotationType())){
