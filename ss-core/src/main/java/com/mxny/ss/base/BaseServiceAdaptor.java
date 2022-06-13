@@ -367,22 +367,14 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 			return exampleExpand;
 		}
 		IMybatisForceParams iMybatisForceParams =((IMybatisForceParams) domain);
-		//设置WhereSuffixSql
-		if(StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())){
-			exampleExpand.setWhereSuffixSql(iMybatisForceParams.getWhereSuffixSql());
-		}
 		//这里构建Example，并设置selectColumns
 		Set<String> columnsSet = iMybatisForceParams.getSelectColumns();
 		if(columnsSet == null|| columnsSet.isEmpty()){
 			return exampleExpand;
 		}
 		Boolean checkInjection = iMybatisForceParams.getCheckInjection();
-		//如果不检查，则用反射强制注入
+		//设置查询结果列。 如果不检查，则用反射强制注入
 		if (checkInjection == null || !checkInjection) {
-			//设置WhereSuffixSql
-			if(StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())){
-				exampleExpand.setWhereSuffixSql(iMybatisForceParams.getWhereSuffixSql());
-			}
 			try {
 				Field selectColumnsField = Example.class.getDeclaredField("selectColumns");
 				selectColumnsField.setAccessible(true);
@@ -502,6 +494,19 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 			buildExampleByGetterMethods(domain, example);
 		}else {//类取属性
 			buildExampleByFields(domain, example);
+		}
+		if(domain instanceof IMybatisForceParams){
+			IMybatisForceParams iMybatisForceParams =((IMybatisForceParams) domain);
+			//没有查询条件，则在WhereSuffixSql前面加where 1=1
+			if (example.getOredCriteria().isEmpty()) {
+				example.setWhereSuffixSql("where 1=1 "+iMybatisForceParams.getWhereSuffixSql());
+			}else{
+				example.setWhereSuffixSql(iMybatisForceParams.getWhereSuffixSql());
+			}
+			//设置WhereSuffixSql
+			if(StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())){
+
+			}
 		}
 		//设置动态表名
 		if(domain instanceof IDynamicTableName){
