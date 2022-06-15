@@ -1,5 +1,6 @@
 package com.mxny.ss.domain;
 
+import com.mxny.ss.dto.DTOUtils;
 import com.mxny.ss.dto.IBaseDomain;
 import com.mxny.ss.metadata.FieldEditor;
 import com.mxny.ss.metadata.annotation.EditMode;
@@ -140,4 +141,8 @@ public interface SelectColumn extends IBaseDomain {
     @Column(name="`modify_time`")
     LocalDateTime getModifyTime();
     void setModifyTime(LocalDateTime modifyTime);
+
+    static SelectColumn create() {
+        return DTOUtils.newInstance(SelectColumn.class);
+    }
 }
