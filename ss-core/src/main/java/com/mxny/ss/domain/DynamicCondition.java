@@ -7,7 +7,7 @@ import com.mxny.ss.metadata.annotation.EditMode;
 import com.mxny.ss.metadata.annotation.FieldDef;
 
 import javax.persistence.*;
-import java.time.LocalDateTime;
+import java.util.Date;
 
 /**
  * 动态条件字段
@@ -170,8 +170,8 @@ public interface DynamicCondition extends IBaseDomain {
      * @return
      */
     @Column(name="`create_time`")
-    LocalDateTime getCreateTime();
-    void setCreateTime(LocalDateTime createTime);
+    Date getCreateTime();
+    void setCreateTime(Date createTime);
 
     /**
      * 修改人id
@@ -194,8 +194,8 @@ public interface DynamicCondition extends IBaseDomain {
      * @return
      */
     @Column(name="`modify_time`")
-    LocalDateTime getModifyTime();
-    void setModifyTime(LocalDateTime modifyTime);
+    Date getModifyTime();
+    void setModifyTime(Date modifyTime);
 
     static DynamicCondition create() {
         return DTOUtils.newInstance(DynamicCondition.class);
