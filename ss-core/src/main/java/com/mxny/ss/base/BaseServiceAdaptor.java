@@ -495,17 +495,16 @@ public abstract class BaseServiceAdaptor<T extends IDomain, KEY extends Serializ
 		}else {//类取属性
 			buildExampleByFields(domain, example);
 		}
+		//设置WhereSuffixSql
 		if(domain instanceof IMybatisForceParams){
 			IMybatisForceParams iMybatisForceParams =((IMybatisForceParams) domain);
-			//没有查询条件，则在WhereSuffixSql前面加where 1=1
-			if (example.getOredCriteria().isEmpty() || example.getOredCriteria().get(0).getCriteria().isEmpty()) {
-				example.setWhereSuffixSql("where 1=1 "+iMybatisForceParams.getWhereSuffixSql());
-			}else{
-				example.setWhereSuffixSql(iMybatisForceParams.getWhereSuffixSql());
-			}
-			//设置WhereSuffixSql
-			if(StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())){
-
+			if (StringUtils.isNotBlank(iMybatisForceParams.getWhereSuffixSql())) {
+				//没有查询条件，则在WhereSuffixSql前面加where 1=1
+				if (example.getOredCriteria().isEmpty() || example.getOredCriteria().get(0).getCriteria().isEmpty()) {
+					example.setWhereSuffixSql("where 1=1 "+iMybatisForceParams.getWhereSuffixSql());
+				}else{
+					example.setWhereSuffixSql(iMybatisForceParams.getWhereSuffixSql());
+				}
 			}
 		}
 		//设置动态表名
