@@ -557,10 +557,6 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
         if(dynamicConditions == null || dynamicConditions.isEmpty()){
             return;
         }
-        //查询条件排序，后期用于处理括号
-        Collections.sort(dynamicConditions, (a, b) -> {
-            return a.getOrderNumber().compareTo(b.getOrderNumber());
-        });
         for (DynamicCondition dynamicCondition : dynamicConditions) {
             //这里只处理条件类型，非条件类型在whereSuffix处理
             if (!DynamicConditionType.CONDITION.getCode().equals(dynamicCondition.getType())) {
@@ -661,6 +657,12 @@ public class DynamicTaosService extends BaseTaosService<DynamicDomain> {
         ExampleExpand exampleExpand = ExampleExpand.of(entityClass);
         Set<String> columnsSet = null;
         Boolean checkInjection = false;
+        //先对查询条件排序
+        List<DynamicCondition> dynamicConditions = domain.getDynamicConditions();
+        //查询条件排序，后期用于处理括号
+        Collections.sort(dynamicConditions, (a, b) -> {
+            return a.getOrderNumber().compareTo(b.getOrderNumber());
+        });
         //设置WhereSuffixSql
         buildWhereSuffix(domain, exampleExpand);
         if (CollectionUtils.isNotEmpty(domain.getSelectColumns())) {
